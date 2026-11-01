@@ -1,5 +1,11 @@
 # Deployment boundaries
 
+## New local MVP
+
+`npm run mvp` starts the backend-enabled first slice at http://127.0.0.1:4188. See [MVP setup](mvp-setup.md). It is not deployed to either host below. `mvp/` is excluded from public GitHub Pages output. A hosted version needs authenticated ownership, durable hosted storage, managed secrets, and verified webhook handling before moving beyond this loopback-only Sandbox milestone.
+
+For temporary access to this current MVP on iPhone, run `npm run mvp:phone` alongside the server. It creates a private, expiring HTTPS link through an authenticated proxy; see [Claude handoff](claude-handoff.md#iphone-preview). The PC must stay awake. The link is not the older Sites URL below, and must not be committed.
+
 ## Existing phone preview
 
 URL: https://saveup-inbox-lab-mendel.mendelhecht770.chatgpt.site/

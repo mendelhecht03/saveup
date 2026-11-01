@@ -3,6 +3,7 @@
 # Keep internal content excluded; do not add .nojekyll.
 exclude:
   - prototype
+  - mvp
   - docs
   - scripts
   - tests

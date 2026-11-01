@@ -5,7 +5,9 @@
   "engines": { "node": ">=24" },
   "scripts": {
     "start": "npm --prefix prototype start",
-    "check": "npm --prefix prototype run check",
+    "mvp": "npm --prefix mvp start",
+    "mvp:phone": "node mvp/phone-preview.mjs",
+    "check": "npm --prefix prototype run check && npm --prefix mvp run check",
     "check:pages": "node scripts/check-pages.mjs",
     "test": "npm run check"
   }

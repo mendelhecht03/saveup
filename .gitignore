@@ -17,3 +17,8 @@ AGENTS.override.md
 _site/
 .jekyll-cache/
 .sass-cache/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+token.key
+.obsidian/
