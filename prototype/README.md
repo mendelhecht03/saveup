@@ -52,6 +52,8 @@ Design and behavior references: the user's [original specification](../docs/prod
 
 Ten model tests cover review gating, transfer neutrality/direction, integer-cent splits, IOUs, pending replacement and changed-amount review, planned matching, mock-state isolation, date filtering, and budget overages.
 
+A server regression test covers missing/invalid URLs, restricted file access, and serving the app after failed requests. The import fixed a pre-existing local-server crash on missing files; the browser app was copied unchanged.
+
 Browser walkthrough in Chromium at a 390×844 mobile viewport covered categorization, blocked unclassified transfers, receipt split errors, IOUs, plan matching, pending-to-posted, all-reviewed completion, correct weekly amounts, manual cash entry, and saved state. Layout checks at 320px confirmed no horizontal overflow for the inbox and receipt dialog. Actual iPhone Safari hardware has not been tested.
 
 The Design A update also verified: default routing despite an older saved Cards preference; preserved existing review data; inline categorization requiring explicit confirmation; details expanding without a modal; IOU drafts surviving collapse and neighboring transaction reviews; adding/removing split lines; exact-sum validation; 100% reconciliation while bank settlement remains pending; and category edits not counting the same transaction twice. Expanded receipt controls fit both 320px and 390px widths. The later focus-only update removed the alternate modes and comparison routes; old links retain the Focused review data.

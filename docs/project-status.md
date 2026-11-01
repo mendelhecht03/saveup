@@ -31,10 +31,10 @@ The persisted key is `saveup-inbox-lab-v1`. The app uses the `focused` state and
 
 `prototype/dist/app.js` owns the interface, `model.js` owns the ledger, and `style.css` owns the visual style. `dist` is hand-edited source, not generated output. The local server serves only that directory.
 
-Ten existing automated tests cover explicit review and transfers, pending replacement, exact splits, IOUs, planned matching, mock-state isolation, date filtering, and over-budget totals. Earlier Chromium walkthroughs covered the main flows at 390px and layout at 320px. Actual iPhone Safari hardware has not been tested.
+Ten model tests cover explicit review and transfers, pending replacement, exact splits, IOUs, planned matching, mock-state isolation, date filtering, and over-budget totals. A server regression test checks that missing/invalid URLs cannot stop the preview or expose files outside the app. Earlier Chromium walkthroughs covered the main flows at 390px and layout at 320px; the import also checked review persistence and progress at 390px. Actual iPhone Safari hardware has not been tested.
 
 ## Repository handoff
 
-The Focused Inbox was imported from the separate Sites repository at commit `f251cfc61ddfa5143c21cfbcd381ed78dff7bcaf`. Runtime files and font assets were copied unchanged; repository documentation and scripts were adapted. The existing landing and privacy pages were preserved.
+The Focused Inbox was imported from the separate Sites repository at commit `f251cfc61ddfa5143c21cfbcd381ed78dff7bcaf`. Browser code and font assets were copied unchanged; repository documentation and scripts were adapted. The local server was fixed to read files before sending success headers, so a missing file returns 404 instead of crashing. Its optional `PORT` setting supports isolated tests. The existing landing and privacy pages were preserved.
 
 Future code changes belong here. The existing private Sites preview is a separately published snapshot; see [deployment notes](deployment.md). No auto-deployment from GitHub has been configured.
