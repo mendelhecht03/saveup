@@ -16,10 +16,12 @@ async function filesUnder(directory) {
 }
 
 const publicFiles = ['index.html', 'privacy.html'];
-assert.deepEqual(await filesUnder(output), publicFiles,
-  'Pages output must contain only the existing public landing and privacy pages. Check _config.yml exclusions.');
+// GitHub Pages also emits its default theme CSS, already present on the public site.
+const allowedOutput = ['assets/css/style.css', ...publicFiles];
+assert.deepEqual(await filesUnder(output), allowedOutput,
+  'Pages output must contain only the existing public pages and generated theme CSS. Check _config.yml exclusions.');
 for (const filename of publicFiles) {
   assert.deepEqual(await readFile(path.join(output, filename)), await readFile(filename),
     `The Pages build unexpectedly transformed ${filename}`);
 }
-console.log('Pages boundary verified: only index.html and privacy.html are published, unchanged.');
+console.log('Pages boundary verified: unchanged landing/privacy HTML and the generated theme CSS only.');

@@ -22,7 +22,7 @@ GitHub Pages builds from `main`, at the repository root, using Jekyll. The exist
 
 After repository changes, verify the Pages build succeeded, the landing/privacy pages still load, and internal paths such as `/saveup/prototype/dist/app.js` and `/saveup/docs/product-spec.md` return 404.
 
-The GitHub Actions `public-pages-boundary` check builds with Jekyll and runs `npm run check:pages` against the actual output. It requires exactly the two existing HTML files, byte-for-byte unchanged by the build. If you intentionally add public assets later, update that allowlist as part of the same reviewed change. Do not loosen it to allow all repository files.
+The GitHub Actions `public-pages-boundary` check builds with Jekyll and runs `npm run check:pages` against the actual output. It permits the two existing HTML files, byte-for-byte unchanged by the build, plus GitHub Pages' generated `assets/css/style.css`, which was already public before the import. If you intentionally add public assets later, update that allowlist as part of the same reviewed change. Do not loosen it to allow all repository files.
 
 ## Local preview
 
