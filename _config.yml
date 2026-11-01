@@ -1,0 +1,28 @@
+# This private repository also builds a PUBLIC GitHub Pages site.
+# Only the existing landing and privacy pages should be published.
+# Keep internal content excluded; do not add .nojekyll.
+exclude:
+  - prototype
+  - docs
+  - scripts
+  - tests
+  - AGENTS.md
+  - CLAUDE.md
+  - CONTRIBUTING.md
+  - README.md
+  - package.json
+  - package-lock.json
+  - .github
+  - .vscode
+  - .openai
+  - .claude
+  - .sass-cache
+  - .jekyll-cache
+  - gemfiles
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle
+  - vendor/cache
+  - vendor/gems
+  - vendor/ruby
