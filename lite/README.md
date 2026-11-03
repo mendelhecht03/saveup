@@ -1,13 +1,13 @@
 # SaveUp Lite
 
-A cheap, minimal end-to-end version of SaveUp built from the Obsidian notes, so the idea can be tried on a phone quickly. **Plaid Sandbox only** (fictional banks). Independent of `mvp/`, except that it reuses `mvp/phone-preview.mjs` for the phone link.
+A cheap, minimal end-to-end version of SaveUp built from the Obsidian notes, so the idea can be tried on a phone quickly. **Plaid Sandbox only** (fictional banks). This is the only app in the repository.
 
 ## Run
 
 1. Put Sandbox keys in `lite/.env.local` (ignored by Git): `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV=sandbox`.
-2. `npm run lite` serves http://127.0.0.1:4193 (loopback only).
-3. `npm run lite:phone` prints a private HTTPS link that expires after 8 hours. It needs `cloudflared` at `%LOCALAPPDATA%\SaveUp\tools\cloudflared.exe` or at `CLOUDFLARED_PATH`. Never commit the link.
-4. `npm --prefix lite run check` runs syntax checks and ledger tests.
+2. `npm start` serves http://127.0.0.1:4193 (loopback only).
+3. `npm run phone` prints a private HTTPS link that expires after 8 hours. It needs `cloudflared` at `%LOCALAPPDATA%\SaveUp\tools\cloudflared.exe` or at `CLOUDFLARED_PATH`. Never commit the link.
+4. `npm run check` runs syntax checks and ledger tests.
 
 Data is a JSON file at `%LOCALAPPDATA%\SaveUp\lite-sandbox\state.json` (override with `SAVEUP_LITE_DATA`). Access tokens are stored there and are never sent to the browser.
 

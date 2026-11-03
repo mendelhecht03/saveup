@@ -2,8 +2,6 @@
 # Only the existing landing and privacy pages should be published.
 # Keep internal content excluded; do not add .nojekyll.
 exclude:
-  - prototype
-  - mvp
   - lite
   - docs
   - scripts

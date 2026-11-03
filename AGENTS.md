@@ -1,34 +1,35 @@
 # Shared SaveUp instructions
 
+These instructions apply to every coding assistant (Claude Code reads them through `CLAUDE.md`, Codex reads this file directly).
+
 ## Work with Mendel
 
-Mendel is an aspiring programmer and doesn't have a deep understand of how the codebase works. Explain concepts clearly yet concisely. If something is complicated assume that Mendel
+Mendel is an aspiring programmer without a deep understanding of the codebase. Explain concepts clearly and concisely, in plain language. Handle routine implementation without asking repeated permission; ask about product tradeoffs.
 
-## Start here
+## One app, one source of truth
 
-* Read `README.md` and `docs/project-status.md`; consult `docs/product-spec.md` for the larger vision.
-* For the current MVP/Figma handoff, read `docs/claude-handoff.md`. Active app code is `mvp/`; `prototype/` is the earlier mock-data app. Continue on `feature/plaid-sandbox` for this handoff.
-* This GitHub repository is the shared source for future work. The earlier Sites checkout is an archived starting point, not a second place to develop the app.
-* Run `git status --short --branch` before editing. Preserve existing work; never reset, discard, or overwrite another assistant's changes.
-* Mendel alternates Codex and Claude Code in this same local folder. Reuse the current task branch when continuing a handoff. Do not run concurrent editors against the same checkout. If parallel work is explicitly requested, use separate branches and worktrees or clones.
-* At handoff, summarize what changed, checks run, current branch, commit/push status, and any unfinished work. Keep `docs/project-status.md` current when scope or behavior changes. Chat history does not transfer between assistants.
+* The only app is `lite/`. Do not create a second app, a parallel copy, or a new top-level app folder. Improve `lite/` instead.
+* GitHub `main` is the source of truth. Never commit to `main` directly. Start each task with `git switch main && git pull`, then create a descriptive branch, and open a pull request when done.
+* One assistant works in a checkout at a time. If parallel work is explicitly requested, use a separate git worktree on its own branch.
+* Run `git status --short --branch` before editing. Never reset, discard, or overwrite uncommitted work you did not create; ask Mendel first.
+* Archived work lives on `archive/*` branches (for example `archive/codex-mvp`, the earlier `mvp/` app with real-bank setup). Read them for reference only; copy pieces deliberately, never merge them.
+* At handoff, summarize what changed, checks run, branch, and push status. Keep `docs/project-status.md` current. Chat history does not transfer between assistants.
 
 ## Product boundaries
 
-* Current MVP scope is Plaid Sandbox integration, the basic review inbox, and weekly category budgeting only. Use Figma as visual reference for those features; do not implement the whole file. Receipt scanning, splits/IOUs, plans, subscriptions, AI/guide screens, and other advanced features are deferred unless Mendel explicitly expands scope.
+* Current scope: Plaid **Sandbox only**, with custom fake data, to simulate edge cases (pending to posted, changed amounts, transfers, refunds, duplicates, hand-logged purchases). Real bank connections (Plaid Production) are out of scope until Mendel says otherwise.
+* `docs/product-spec.md` describes the larger future product.
 * Preserve the icy-blue Friendly Spatial style: floating white cards, navy type, bright blue pills, soft shadows, dimensional icons, generous touch targets, and mobile-safe spacing.
 * Keep review deliberate: a suggestion or category selection alone does not confirm a transaction.
 * Keep bank settlement (pending/posted) separate from user review. A changed final amount requires review again; posting must not duplicate a purchase.
-* Transfers require explicit purpose and valid direction before counting as income or spending. Own-account transfers are neutral.
-* Use integer cents. Splits must sum exactly; IOUs are separate from personal spending while preserving the original outflow. Planned matches release their reservation once without duplicating the expense.
-* Preserve the existing public `index.html` and `privacy.html` unless the task specifically concerns them.
-* GitHub Pages is public, even though the repository is private. Keep internal files excluded by `\_config.yml`; add exclusions for any new top-level internal directory or document. Do not add `.nojekyll`, which would bypass those exclusions.
-* Never commit secrets, `.env` values, real receipts, bank exports, or deployment credentials. Keep the font license with the fonts.
+* Transfers require an explicit purpose before counting as income or spending. Own-account transfers are neutral.
+* Use integer cents. Splits must sum exactly.
+* Preserve the public `index.html` and `privacy.html`. GitHub Pages is public even though the repository is private: keep internal files excluded in `_config.yml`, add exclusions for any new top-level internal folder, and never add `.nojekyll`.
+* Never commit secrets, `.env` values, bank data, or preview links.
 
 ## Development and validation
 
-* Use Node.js 24 LTS. No dependencies or build step are required. `prototype/dist/` is editable source.
-* `npm start` serves the app at http://127.0.0.1:4187; `npm run check` checks syntax and runs the ledger tests.
-* After changes to calculations, run the checks and add a regression test when it protects meaningful behavior. For interface changes, also inspect affected flows at 390px and 320px widths and check for horizontal overflow. Do not claim iPhone Safari testing based only on desktop emulation.
-* Before committing, inspect the diff and confirm the public pages and deployment exclusions remain correct. Commit and push when requested; never force-push shared history. For a new task, prefer a descriptive branch; merge completed work only within the user's requested scope.
-* A GitHub push does not deploy the separate Sites preview. Follow `docs/deployment.md` and report accurately whether a preview was updated.
+* Node.js 24 LTS. No dependencies or build step.
+* `npm start` serves the app at http://127.0.0.1:4193. `npm run phone` prints a private 8-hour link for Mendel's phone. `npm run check` runs syntax checks and tests. See `lite/README.md` for keys and data location.
+* After changing calculations, run the checks and add a regression test for meaningful behavior. For interface changes, check 390px and 320px widths for overflow. Do not claim iPhone testing based only on desktop emulation.
+* Before committing, inspect the diff. Never force-push shared history.

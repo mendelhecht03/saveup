@@ -4,13 +4,10 @@
   "private": true,
   "engines": { "node": ">=24" },
   "scripts": {
-    "start": "npm --prefix prototype start",
-    "mvp": "npm --prefix mvp start",
-    "mvp:phone": "node mvp/phone-preview.mjs",
-    "check": "npm --prefix prototype run check && npm --prefix mvp run check && npm --prefix lite run check",
+    "start": "npm --prefix lite start",
+    "phone": "node lite/phone.mjs",
+    "check": "npm --prefix lite run check",
     "check:pages": "node scripts/check-pages.mjs",
-    "test": "npm run check",
-    "lite": "npm --prefix lite start",
-    "lite:phone": "node lite/phone.mjs"
+    "test": "npm run check"
   }
 }

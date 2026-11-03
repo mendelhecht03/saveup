@@ -1,10 +1,10 @@
-// Private, expiring HTTPS link for the phone. Reuses the MVP's authenticated proxy
+// Private, expiring HTTPS link for the phone. Uses the authenticated proxy in phone-preview.mjs
 // (secret link -> Secure cookie) in front of the loopback-only Lite server.
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { createPreview } from '../mvp/phone-preview.mjs';
+import { createPreview } from './phone-preview.mjs';
 
 const upstreamPort = Number(process.env.LITE_PORT || 4193);
 const ready = await fetch(`http://127.0.0.1:${upstreamPort}/api/state`).catch(() => null);

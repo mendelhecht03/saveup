@@ -1,4 +1,4 @@
-name: Prototype checks
+name: App checks
 
 on:
   push:

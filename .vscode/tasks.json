@@ -2,14 +2,21 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "SaveUp: start prototype",
+      "label": "SaveUp: start app",
       "type": "shell",
       "command": "npm start",
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "dedicated" }
     },
     {
-      "label": "SaveUp: check prototype",
+      "label": "SaveUp: phone link",
+      "type": "shell",
+      "command": "npm run phone",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "SaveUp: run checks",
       "type": "shell",
       "command": "npm run check",
       "group": { "kind": "test", "isDefault": true },
