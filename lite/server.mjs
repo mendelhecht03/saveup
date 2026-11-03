@@ -7,6 +7,7 @@ import { homedir } from 'node:os';
 import { loadEnvFile } from 'node:process';
 import * as L from './public/logic.mjs';
 import { plaidClient, collectUpdates } from './plaid.mjs';
+import { BANK_NAME, publicTokenRequest } from './sandbox/banks.mjs';
 
 const publicRoot = fileURLToPath(new URL('./public/', import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.svg': 'image/svg+xml' };
@@ -69,6 +70,18 @@ export async function createApp({ client, store, csrf = randomBytes(24).toString
     '/api/sandbox/instant': async () => {
       const r = await client.call('/sandbox/public_token/create', { institution_id: 'ins_109508', initial_products: ['transactions'], options: { override_username: 'user_transactions_dynamic', override_password: 'pass_good' } });
       await addItem(r.public_token, 'First Platypus Bank (test)');
+    },
+    // The SaveUp Test Bank: a custom Sandbox user with every edge case (see sandbox/banks.mjs).
+    // fresh: true removes earlier test banks first; banks added through Link stay.
+    '/api/sandbox/seed': async b => {
+      if (b.fresh) for (const item of state.items.filter(i => i.name === BANK_NAME)) {
+        await client.call('/item/remove', { access_token: item.token }).catch(() => {});
+        L.removeItem(state, item.id);
+      }
+      const r = await client.call('/sandbox/public_token/create', publicTokenRequest(L.todayISO()));
+      await addItem(r.public_token, BANK_NAME);
+      // Plaid sends the last 30 days first and the older history a few seconds later.
+      await sync(state.items.at(-1), { untilFound: batch => batch.status === 'HISTORICAL_UPDATE_COMPLETE' }).catch(() => {});
     },
     '/api/sandbox/charge': async b => {
       const item = findItem(b.itemId);
