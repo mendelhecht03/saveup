@@ -19,6 +19,7 @@ Mendel is an aspiring programmer without a deep understanding of the codebase. E
 
 * Current scope: Plaid **Sandbox only**, with custom fake data, to simulate edge cases (pending to posted, changed amounts, transfers, refunds, duplicates, hand-logged purchases). Real bank connections (Plaid Production) are out of scope until Mendel says otherwise.
 * `docs/product-spec.md` describes the larger future product.
+* `docs/design/` holds the mockups: the visual and behavioral target. Read `docs/design/README.md` before any interface work.
 * Preserve the icy-blue Friendly Spatial style: floating white cards, navy type, bright blue pills, soft shadows, dimensional icons, generous touch targets, and mobile-safe spacing.
 * Keep review deliberate: a suggestion or category selection alone does not confirm a transaction.
 * Keep bank settlement (pending/posted) separate from user review. A changed final amount requires review again; posting must not duplicate a purchase.
