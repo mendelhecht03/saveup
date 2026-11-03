@@ -83,6 +83,27 @@ code { background: var(--blue-soft); padding: 1px 5px; border-radius: 6px; }
 .actions { display: flex; flex-direction: column; margin-top: 8px; }
 .weeknav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; font-weight: 700; }
 
+/* inbox: one fixed screen with a queue that shifts up as items are reconciled */
+main.fit { height: 100vh; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; padding-bottom: calc(env(safe-area-inset-bottom) + 92px); }
+.inbox { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.inbox .top { margin-bottom: 14px; }
+.round.add { color: #fff; background: linear-gradient(180deg, #4b8ffa, var(--blue)); box-shadow: 0 6px 16px rgba(47, 124, 246, .35); }
+.progress { padding: 16px 18px; }
+.progress .big { font-size: 26px; margin-right: 2px; }
+.progress .bar { margin: 10px 0 8px; }
+.progress .fill { width: 0; background: linear-gradient(90deg, #5fd3a0, var(--green)); border-radius: 999px; animation: none; transition: width .6s cubic-bezier(.2, .9, .3, 1.1); }
+.link { padding: 0; border: 0; background: none; font: inherit; color: var(--blue); font-weight: 700; cursor: pointer; }
+.queue { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 10px; margin: -6px -10px 0; padding: 6px 10px 14px; }
+.queue.overflowing { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); }
+.row.compact { flex: none; height: 68px; min-height: 0; }
+.row.compact small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tag { font-style: normal; font-weight: 700; color: #a26a12; }
+.tag.warn { color: #b23a33; }
+.row.leaving { animation: leave .26s cubic-bezier(.4, 0, .6, 1) forwards; pointer-events: none; }
+@keyframes leave { to { opacity: 0; transform: translateX(60%) scale(.94); } }
+.more { flex: none; margin: 2px 0 0; text-align: center; font-size: 13px; font-weight: 700; color: var(--muted); }
+.inbox .empty { margin-top: 4px; }
+
 /* budgets */
 .budget { padding: 14px 16px 16px; }
 .budget-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; min-height: 48px; }

@@ -27,8 +27,9 @@ async function api(path, body) {
 
 // Run an action with an optional "busy" overlay, then redraw. Errors become a toast.
 async function act(fn, { wait = '', done = '' } = {}) {
+  const tops = queueTops(); // so purchases that arrive from a sync slide into the queue
   busy = wait; render();
-  try { await fn(); if (done) say(done); } catch (e) { say(e.message, true); } finally { busy = ''; render(); }
+  try { await fn(); if (done) say(done); } catch (e) { say(e.message, true); } finally { busy = ''; render(tops); }
 }
 function say(message, error = false) {
   toast = { message, error };
@@ -46,34 +47,42 @@ function statusPills(t) {
   if (t.matchedFrom) p.push('<span class="pill ok">Matched</span>');
   return p.join('');
 }
-function row(t) {
+// compact rows are one fixed height (status shown inline) so the inbox queue lines up evenly.
+function row(t, compact = false) {
   const c = cat(t.categoryId), sug = !t.reviewed && L.suggest(S, t), sc = sug && cat(sug.categoryId);
   const icon = t.transfer ? '🔁' : (c || sc)?.emoji || (t.source === 'manual' ? '✍️' : '🏦');
   let sub = c ? c.name : t.transfer ? (t.transferKind === 'own' ? 'Between my accounts' : t.transferKind === 'income' ? 'Income' : 'Transfer · needs a purpose') : sc ? `${sc.name}?` : 'Needs a budget';
   if (t.reviewed && t.note) sub += ` · ${t.note}`;
-  return `<button class="row" data-act="open" data-id="${esc(t.id)}">
+  const tag = t.pending ? '<em class="tag">Pending</em> ' : t.amountChanged ? '<em class="tag warn">Amount changed</em> ' : '';
+  return `<button class="row ${compact ? 'compact' : ''}" data-act="open" data-id="${esc(t.id)}">
     <span class="icon">${icon}</span>
-    <span class="grow"><b>${esc(t.name)}</b><small>${shortDate(t.date)} · ${esc(sub)}</small>${statusPills(t) ? `<span class="pills">${statusPills(t)}</span>` : ''}</span>
+    <span class="grow"><b>${esc(t.name)}</b><small>${compact ? tag : ''}${shortDate(t.date)} · ${esc(sub)}</small>${!compact && statusPills(t) ? `<span class="pills">${statusPills(t)}</span>` : ''}</span>
     <span class="amt ${t.amountCents < 0 ? 'in' : ''}">${amount(t)}</span></button>`;
 }
 const catChips = (selected, name = 'cat') => `<div class="chips">${S.categories.map(c => `<label class="chip"><input type="radio" name="${name}" value="${esc(c.id)}" ${c.id === selected ? 'checked' : ''}><span>${c.emoji} ${esc(c.name)}</span></label>`).join('')}</div>`;
 
 // ---------- tabs
+// The inbox is one screen, never a scrolling feed: a fixed queue shows as many
+// purchases as fit, and reconciling one slides it out while the rest move up.
 function inboxView() {
   const today = L.todayISO(), { start, end } = L.weekRange(today, weekOffset);
-  const week = S.txns.filter(t => t.date >= start && t.date <= end).sort(byDate);
-  const open = week.filter(t => !t.reviewed), done = week.filter(t => t.reviewed);
+  const week = S.txns.filter(t => t.date >= start && t.date <= end);
+  const open = week.filter(t => !t.reviewed).sort(byDate);
   const older = S.txns.filter(t => !t.reviewed && t.date < start).sort(byDate);
-  const label = weekOffset === 0 ? 'This week' : weekOffset === -1 ? 'Last week' : `${shortDate(start)} – ${shortDate(end)}`;
-  return `
-    <header class="top"><p class="eyebrow">${shortDate(start)} – ${shortDate(end)}</p><h1>Inbox</h1></header>
-    <div class="weeknav"><button class="round" data-act="week" data-d="-1" aria-label="Previous week">‹</button><span>${label}</span><button class="round" data-act="week" data-d="1" ${weekOffset >= 0 ? 'disabled' : ''} aria-label="Next week">›</button></div>
-    <section class="card hero"><div><b class="big">${open.length}</b><span>to review</span></div><div><b class="big">${money(L.weekSpending(S, today, weekOffset))}</b><span>spent</span></div></section>
-    ${!S.items.length && !S.txns.length ? `<section class="card empty"><span class="icon big">🏦</span><p>Connect a test bank to fill your inbox.</p><button class="btn primary" data-act="tab" data-tab="banks">Connect a bank</button></section>` : ''}
-    ${open.length ? `<section class="list">${open.map(row).join('')}</section>` : S.txns.length ? '<section class="card empty"><span class="icon big">🎉</span><p>All caught up for this week.</p></section>' : ''}
-    ${older.length ? `<button class="card banner" data-act="jump" data-date="${older[0].date}">⏳ ${older.length} older purchase${older.length > 1 ? 's' : ''} still need${older.length > 1 ? '' : 's'} review <span>›</span></button>` : ''}
-    ${done.length ? `<details class="done"><summary>Reviewed this week (${done.length})</summary><section class="list">${done.map(row).join('')}</section></details>` : ''}
-    <div class="actions"><button class="btn primary" data-act="manual">＋ Log a purchase</button></div>`;
+  const label = weekOffset === 0 ? 'This week' : weekOffset === -1 ? 'Last week' : 'Week of';
+  const pct = week.length ? Math.round((week.length - open.length) * 100 / week.length) : 0;
+  return `<div class="inbox">
+    <header class="top split"><div><p class="eyebrow">${label} · ${shortDate(start)} – ${shortDate(end)}</p><h1>Inbox</h1></div>
+      <span class="row-btns"><button class="round" data-act="week" data-d="-1" aria-label="Previous week">‹</button><button class="round" data-act="week" data-d="1" ${weekOffset >= 0 ? 'disabled' : ''} aria-label="Next week">›</button><button class="round add" data-act="manual" aria-label="Log a purchase">＋</button></span></header>
+    <section class="card progress">
+      <div class="split"><span><b class="big">${open.length}</b> to review</span><span class="muted">${money(L.weekSpending(S, today, weekOffset))} spent</span></div>
+      <div class="bar"><i class="fill" data-pct="${pct}"></i></div>
+      <small>${week.length ? `${week.length - open.length} of ${week.length} reconciled` : 'Nothing this week yet'}${older.length ? ` · <button class="link" data-act="jump" data-date="${older[0].date}">${older.length} older waiting ›</button>` : ''}</small>
+    </section>
+    ${!S.items.length && !S.txns.length ? `<section class="card empty"><span class="icon big">🏦</span><p>Connect a test bank to fill your inbox.</p><button class="btn primary" data-act="tab" data-tab="banks">Connect a bank</button></section>`
+      : open.length ? `<section class="queue" data-total="${open.length}">${open.slice(0, 15).map(t => row(t, true)).join('')}</section><p class="more" id="more" hidden></p>`
+      : '<section class="card empty"><span class="icon big">🎉</span><p>All caught up for this week.</p></section>'}
+  </div>`;
 }
 
 function budgetsView() {
@@ -222,8 +231,41 @@ function sheetHTML() {
   return `<div class="backdrop" data-act="close"></div><div class="sheet" role="dialog" aria-modal="true"><button class="round close" data-act="close" aria-label="Close">✕</button>${body}</div>`;
 }
 
-let configured = true;
-function render() {
+let configured = true, lastPct = 0;
+const queueTops = () => new Map([...document.querySelectorAll('.queue .row')].map(r => [r.dataset.id, r.getBoundingClientRect().top]));
+
+// After drawing: count rows hidden below the fold, grow the progress bar from its
+// last value, and (given the old row positions) glide rows to their new places.
+function postRender(prevTops) {
+  const q = $('.queue');
+  if (q) {
+    const rows = [...q.children], bottom = q.getBoundingClientRect().bottom;
+    const hidden = Number(q.dataset.total) - rows.filter(r => r.getBoundingClientRect().bottom <= bottom + 1).length;
+    q.classList.toggle('overflowing', hidden > 0);
+    $('#more').hidden = hidden <= 0;
+    $('#more').textContent = `${hidden} more waiting`;
+    if (prevTops) for (const r of rows) {
+      const old = prevTops.get(r.dataset.id), now = r.getBoundingClientRect().top;
+      if (old === undefined) r.animate([{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'none' }], { duration: 320, delay: 140, easing: 'cubic-bezier(.2,.9,.3,1)', fill: 'backwards' });
+      else if (old !== now) r.animate([{ transform: `translateY(${old - now}px)` }, { transform: 'none' }], { duration: 340, easing: 'cubic-bezier(.2,.9,.3,1)' });
+    }
+  }
+  const fill = $('.progress .fill');
+  if (fill) { fill.style.width = `${lastPct}%`; fill.getBoundingClientRect(); fill.style.width = `${fill.dataset.pct}%`; lastPct = Number(fill.dataset.pct); }
+}
+
+// Reconcile one purchase: close the sheet, slide its row out, then shift the rest up.
+async function confirmFlow(body) {
+  try { await api('/api/txn/confirm', body); } catch (e) { say(e.message, true); return render(); }
+  sheet = null;
+  document.querySelector('.sheet')?.remove(); document.querySelector('.backdrop')?.remove(); document.body.classList.remove('locked');
+  const tops = queueTops(), leaving = document.querySelector(`.queue .row[data-id="${CSS.escape(body.id)}"]`);
+  if (leaving) { leaving.classList.add('leaving'); await new Promise(r => setTimeout(r, 260)); }
+  say('Reconciled ✓');
+  render(tops);
+}
+
+function render(prevTops) {
   if (!S) return;
   const views = { inbox: inboxView, budgets: budgetsView, history: historyView, plans: plansView, banks: () => banksView(configured) };
   // Badge = this week's to-dos only; years of Sandbox history would otherwise show "300+".
@@ -231,14 +273,16 @@ function render() {
   const open = S.txns.filter(t => !t.reviewed && t.date >= week.start && t.date <= week.end).length;
   const tabs = [['inbox', '📥', 'Inbox'], ['budgets', '🎯', 'Budgets'], ['history', '🧾', 'History'], ['plans', '🧥', 'Plans'], ['banks', '🏦', 'Banks']];
   const focused = document.activeElement?.id === 'search';
-  $('#app').innerHTML = `<main>${views[tab]()}</main>
+  $('#app').innerHTML = `<main class="${tab === 'inbox' ? 'fit' : ''}">${views[tab]()}</main>
     <nav class="tabs">${tabs.map(([id, icon, label]) => `<button class="${tab === id ? 'on' : ''}" data-act="tab" data-tab="${id}"><span>${icon}${id === 'inbox' && open ? `<i class="badge">${open}</i>` : ''}</span>${label}</button>`).join('')}</nav>
     ${sheetHTML()}
     ${busy ? `<div class="busy"><div class="card"><span class="spin"></span>${esc(busy)}</div></div>` : ''}
     ${toast ? `<div class="toast ${toast.error ? 'error' : ''}" role="status">${esc(toast.message)}</div>` : ''}`;
   document.body.classList.toggle('locked', Boolean(sheet));
   if (focused) { const s = $('#search'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+  postRender(prevTops);
 }
+addEventListener('resize', () => postRender());
 
 // ---------- events
 const weeksBetween = (a, b) => Math.round((Date.parse(L.weekRange(a).start) - Date.parse(L.weekRange(b).start)) / (7 * 864e5));
@@ -281,7 +325,7 @@ document.addEventListener('submit', e => {
   e.preventDefault();
   const f = e.target, v = Object.fromEntries(new FormData(f)), id = f.dataset.id || undefined;
   const forms = {
-    confirm: () => act(async () => { await api('/api/txn/confirm', { id, categoryId: v.cat || null, transferKind: v.kind || null, note: v.note, priority: Number(v.priority) }); sheet = null; }, { done: 'Confirmed ✓' }),
+    confirm: () => confirmFlow({ id, categoryId: v.cat || null, transferKind: v.kind || null, note: v.note, priority: Number(v.priority) }),
     manual: () => act(async () => { await api('/api/txn/manual', { merchant: v.merchant, amountCents: toCents(v.amount), date: v.date, categoryId: v.cat || null, note: v.note, expectMatch: Boolean(v.expectMatch) }); sheet = null; }, { done: 'Purchase logged' }),
     category: () => act(async () => { await api('/api/category/save', { id, emoji: v.emoji, name: v.name, description: v.description, limitCents: toCents(v.limit), interval: v.interval }); sheet = null; }, { done: 'Budget saved' }),
     plan: () => act(async () => { await api('/api/plan/save', { id, name: v.name, lowCents: toCents(v.low), highCents: toCents(v.high), categoryId: v.categoryId || null, essential: Boolean(v.essential) }); sheet = null; }, { done: 'Plan saved' }),
