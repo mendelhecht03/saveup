@@ -1,16 +1,17 @@
-// This adapter can only contact Plaid Sandbox. No Production URL is configurable.
+// Only these two fixed hosts can be contacted. Anything else in PLAID_ENV is refused.
+export const PLAID_HOSTS = { sandbox: 'https://sandbox.plaid.com', production: 'https://production.plaid.com' };
 export class PlaidError extends Error {
   constructor(code, status = 502) { super(code); this.code = code; this.status = status; }
 }
 
 export function plaidClient({ clientId, secret, environment = 'sandbox', fetchImpl = fetch }) {
-  if (environment !== 'sandbox') throw new Error('This milestone supports PLAID_ENV=sandbox only.');
+  if (!Object.hasOwn(PLAID_HOSTS, environment)) throw new Error('PLAID_ENV must be sandbox or production.');
   const configured = Boolean(clientId && secret);
   async function call(endpoint, payload) {
-    if (!configured) throw new PlaidError('SANDBOX_CREDENTIALS_MISSING', 503);
+    if (!configured) throw new PlaidError(environment === 'sandbox' ? 'SANDBOX_CREDENTIALS_MISSING' : 'PRODUCTION_CREDENTIALS_MISSING', 503);
     let response;
     try {
-      response = await fetchImpl(`https://sandbox.plaid.com${endpoint}`, {
+      response = await fetchImpl(`${PLAID_HOSTS[environment]}${endpoint}`, {
         method: 'POST', redirect: 'error', signal: AbortSignal.timeout(30000),
         headers: { 'Content-Type': 'application/json', 'PLAID-CLIENT-ID': clientId, 'PLAID-SECRET': secret, 'Plaid-Version': '2020-09-14' },
         body: JSON.stringify(payload)
@@ -24,7 +25,7 @@ export function plaidClient({ clientId, secret, environment = 'sandbox', fetchIm
     }
     return data;
   }
-  return { configured, call };
+  return { configured, environment, call };
 }
 
 // Collect the WHOLE update before touching SQLite. On mutation, restart at the

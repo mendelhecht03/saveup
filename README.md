@@ -2,7 +2,7 @@
 
 The shared home for SaveUp's code. Open this same repository folder in Codex, Claude Code, or VS Code to work on the same files. GitHub stores the committed history; your local folder is where edits happen.
 
-SaveUp now has a **local MVP foundation** with saved transaction reviews and a Plaid Sandbox connection path, alongside the earlier temporary mock-data prototype. Both preserve the icy-blue Friendly Spatial direction. Production banks are not enabled.
+SaveUp now has a **local MVP foundation** with saved transaction reviews and a Plaid Sandbox connection path, alongside the earlier temporary mock-data prototype. Both preserve the icy-blue Friendly Spatial direction. A Plaid Production mode for your own real accounts is available on `feature/plaid-production`; see [MVP setup](docs/mvp-setup.md).
 
 The current MVP is scoped to **Plaid integration, a basic inbox, and weekly category budgets**. The remaining Figma screens and advanced features can wait.
 

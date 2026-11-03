@@ -4,9 +4,47 @@ Updated November 1, 2026. This file gives either coding assistant the current co
 
 ## Current direction
 
-**Active MVP scope: Plaid Sandbox, a basic review inbox, and weekly category budgets.** The Figma file is a visual reference for these core features, not a requirement to implement every screen. Receipt scanning, splits/IOUs, planned purchases, subscriptions, AI/guide screens, and other advanced features are deferred. Focused Inbox remains the only inbox mode; preserve the icy-blue Friendly Spatial appearance.
+**Active MVP scope: Plaid (Sandbox, plus Production for Mendel's own accounts), a basic review inbox, weekly category budgets, and purchases logged by hand or from a receipt.** The Figma file is a visual reference for these core features, not a requirement to implement every screen. Shared splits/IOUs, planned purchases, subscriptions, AI/guide screens, and other advanced features are deferred. Focused Inbox remains the only inbox mode; preserve the icy-blue Friendly Spatial appearance.
 
 The original [product specification](product-spec.md) describes a larger future product. Its wording is preserved; line endings were normalized so GitHub can display it correctly. The choices below describe this temporary prototype; they are not a claim that every financial policy in the future app has been settled.
+
+## Manual purchases and Figma fidelity (Claude, November 1, 2026, branch `feature/plaid-production`)
+
+Mendel asked for manual purchase entry and for the MVP to match the Figma frames that apply: Purchase review, Transfer review, Groceries budget, Create budget and Receipt review. There are no drawn frames for the inbox or the Home summary, so those use the same sizes and colors.
+
+- **Add purchase** (on the Inbox and on each budget screen) opens the Receipt review layout without a photo: merchant, date, items with prices, tax and tip. The total is always items + tax + tip. Each item can go to its own budget or stay "Same as purchase". A scanned receipt opens the same screen and checks the lines against the printed total.
+- **Match with a bank charge** toggle. On: the purchase is saved as unverified spending and watched. Before saving, the app checks whether the charge is already in the inbox and offers "Match to transaction". Attaching moves the items onto that charge's review, so it counts once. Off: the purchase is recorded now (cash, gift card) and never matched. Logged purchases appear under "Logged by you" and can be edited or deleted until they are matched.
+- **Per-item budgets:** `splitByCategory` in `budget-math.js` divides the bank amount (or the logged total) between budgets in proportion to their items, with largest-remainder rounding, so the parts always add up exactly. A discount cannot push a budget below zero. Linked receipts keep their split when a pending charge posts, and an amount change still reopens review.
+- **Screens:** Home lists budget tiles. Each opens a Groceries-style detail screen: remaining amount, bar, legend, formula, "Purchases this week" and Add purchase. Create/Edit budget follows the Create budget frame but stays weekly-only. Monthly, yearly and custom intervals are still deferred, so they are not shown. Purchase review gains:
+  - an editable merchant title
+  - an optional 1–5 priority
+  - the "Add a receipt" row (scan, or enter by hand)
+  - "A suggestion, not a decision", which prefills the category from the same merchant's reviewed history; only the confirm button saves
+
+  The header shows just the logo and avatar (plus a Live pill in Production). Navigation is Home / Inbox / More (banks). Plans and Guide stay hidden until they exist.
+- **Server:** `POST /api/receipts/check` reports matching charges and possible duplicates without saving. `/api/receipts/save` accepts an `id` to edit an unmatched purchase. Reviews can store an optional `priority`.
+
+Tested: 33 MVP and 11 prototype tests pass. The 5 new tests cover exact splits, per-item budgets, editing and un-watching, matching a logged purchase onto the Target charge (counted once, $8.71 + $2.29), and the HTTP check endpoint. In Chromium, with an isolated data folder and no Plaid credentials, two flows were run at 390px: logged purchase → match → review → budget, and a cash entry. Every screen was checked for horizontal overflow at 320px. Not tested on a real iPhone or with real Production data.
+
+## Real-bank mode (Claude, November 1, 2026, branch `feature/plaid-production`)
+
+Mendel asked to use his real accounts and confirmed his Plaid team is approved for Production. `PLAID_ENV=production` now selects `https://production.plaid.com` (the adapter accepts only the fixed Sandbox and Production hosts). Each SQLite folder records its environment on first use and refuses the other, and folders that existed before this label stay Sandbox. Production stores accept only `access-production-` tokens and no sample fixtures, the server rejects the demo, test-bank and Sandbox refresh endpoints, and a linked bank is named from Plaid Link's institution metadata. The Banks screen in Production shows only Connect and Import. Setup steps and known gaps are in `docs/mvp-setup.md`.
+
+Tested: 32 automated tests pass (3 new ones cover the host allow-list, folder/environment separation including legacy folders, and Production endpoint blocking and token exchange). The Production Banks screen was checked at 390px with an isolated folder. **Not yet done:** an actual Production Link connection and import. That requires Mendel to put the Production secret into `mvp/.env.local` himself. Still missing for real-bank use: a reconnect flow (`ITEM_LOGIN_REQUIRED`), a disconnect button, webhooks, and encryption of the transaction data itself.
+
+**Data-folder caveat:** Codex runs as a packaged Windows app, so its `%LOCALAPPDATA%` writes are redirected to `AppData\Local\Packages\OpenAI.Codex_…\LocalCache\Local\SaveUp`. The existing Sandbox database, its key and `cloudflared.exe` are there, not in `%LOCALAPPDATA%\SaveUp`. Set `SAVEUP_DATA_DIR` (and `CLOUDFLARED_PATH` for the phone helper) explicitly so either assistant or a normal terminal uses the same files.
+
+## Figma polish pass (Claude, November 1, 2026)
+
+Visual-only changes to `mvp/public/app.js`, `style.css` and five new icons (`arrow-left`, `check`, `pencil`, `right`, `shield`). No server, store, Plaid or budget-math changes. Compared against the Figma Purchase review, Transfer review and Groceries budget frames (the "Weekly inbox" link `2:29260` opens an empty wrapper, so the inbox has no drawn Figma frame to match).
+
+- **Purchase review:** "← Back", a remaining-count subtitle, a Date row with the full date, account + status row, a pencil icon on "What did you buy?", a custom chevron select, and a confirm button that names the choice ("✓ Confirm Essentials"). The button text only reflects the selection; saving still requires pressing it.
+- **Transfer review:** "What's this money for?" heading, a peach "Purpose unverified" card, a shield notice, and radio cards with a title, a hint, and a blue border when selected. The confirm label follows the chosen purpose.
+- **Date picker:** one card reading "Sun, Nov 1 – Sat, Nov 7" with a previous-week arrow and a chevron that opens From/Through dates plus This week, All dates and Next week. Date fields stack at narrow widths.
+- **Budget cards:** a large remaining (or over) amount with an icon tile, a "Spent or pending / $limit" row with the true percentage, the posted/pending bar, a dot legend, and reviewed purchases shown as merchant rows.
+- **General:** 16px form text (stops iPhone Safari zooming into fields), 28px card corners, softer shadows, and gray inactive nav icons.
+
+Tested: all 29 automated tests pass. In Chromium with an isolated data folder (Mendel's saved data untouched), at 390px and 320px: purchase review and confirm, transfer view, week picker arrows/toggle, budget cards including a 253% overage, and no horizontal overflow on inbox, review, transfer or My week. Not tested on real iPhone Safari. Inter is not bundled; iPhones show the system font (SF), which is close to the Figma type.
 
 ## New MVP foundation
 

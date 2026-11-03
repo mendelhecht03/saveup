@@ -8,17 +8,21 @@ import { loadEnvFile } from 'node:process';
 import { Store, InputError } from './store.mjs';
 import { plaidClient, collectUpdates } from './plaid.mjs';
 import { fixtureBatch } from './fixtures.mjs';
+import { receiptReader, ReceiptError, MAX_IMAGE_BYTES } from './receipts.mjs';
 
 const publicRoot = fileURLToPath(new URL('./public/', import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml' };
-export function createApp({ store, client, csrfToken = randomBytes(32).toString('hex') }) {
+export function createApp({ store, client, reader = receiptReader({}), csrfToken = randomBytes(32).toString('hex') }) {
   let mutationQueue = Promise.resolve();
   const mutate = task => {
     const pending = mutationQueue.then(task, task);
     mutationQueue = pending.catch(() => {});
     return pending;
   };
-  const state = () => ({ ...store.state(), configured: client.configured, csrfToken, environment: 'sandbox', localOnly: true });
+  const environment = client.environment || 'sandbox';
+  if (store.environment && store.environment !== environment) throw new Error('The data folder and Plaid environment do not match.');
+  const sandboxOnly = new Set(['/api/demo/connect', '/api/demo/post', '/api/plaid/test-item', '/api/plaid/refresh']);
+  const state = () => ({ ...store.state(), configured: client.configured, receiptsConfigured: reader.configured, csrfToken, environment, localOnly: true });
   async function syncItem(item) {
     if (item.provider === 'fixture') return;
     try {
@@ -26,11 +30,12 @@ export function createApp({ store, client, csrfToken = randomBytes(32).toString(
       store.applySync(item.id, batch);
     } catch (error) { store.failItem(item.id, error.code || 'SYNC_FAILED'); throw error; }
   }
-  async function exchange(publicToken) {
-    if (typeof publicToken !== 'string' || !publicToken.startsWith('public-sandbox-') || publicToken.length > 2048) throw new InputError('A Sandbox public token is required.');
+  async function exchange(publicToken, institutionName) {
+    if (typeof publicToken !== 'string' || !publicToken.startsWith(`public-${environment}-`) || publicToken.length > 2048) throw new InputError(`A ${environment} public token is required.`);
     const exchanged = await client.call('/item/public_token/exchange', { public_token: publicToken });
-    if (typeof exchanged.item_id !== 'string' || typeof exchanged.access_token !== 'string') throw new InputError('Invalid Sandbox exchange response.');
-    store.addItem({ id: exchanged.item_id, provider: 'plaid', name: 'Plaid Sandbox bank', token: exchanged.access_token });
+    if (typeof exchanged.item_id !== 'string' || typeof exchanged.access_token !== 'string') throw new InputError('Invalid Plaid exchange response.');
+    const name = typeof institutionName === 'string' && institutionName.trim() && !/[\u0000-\u001f\u007f]/.test(institutionName) ? institutionName.trim().slice(0, 100) : environment === 'sandbox' ? 'Plaid Sandbox bank' : 'Linked bank';
+    store.addItem({ id: exchanged.item_id, provider: 'plaid', name, token: exchanged.access_token });
     // A successful connection survives even if initial transaction sync is not ready.
     try { await syncItem(store.items().find(i => i.id === exchanged.item_id)); } catch { /* Retry from Banks. */ }
   }
@@ -49,20 +54,36 @@ export function createApp({ store, client, csrfToken = randomBytes(32).toString(
       if (req.headers.origin && !new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]).has(req.headers.origin)) throw new InputError('Cross-origin requests are blocked.', 403);
       const url = new URL(req.url, `http://${req.headers.host}`);
       if (req.method === 'GET' && url.pathname === '/api/state') return json(200, state());
+      if (req.method === 'GET' && url.pathname === '/api/receipts/image') {
+        const id = url.searchParams.get('id') || '';
+        const image = /^[0-9a-f-]{36}$/.test(id) && store.receiptImage(id);
+        if (!image) throw new InputError('Receipt photo not found.', 404);
+        res.writeHead(200, { 'Content-Type': image.mediaType, 'Content-Disposition': 'inline' }); return res.end(image.data);
+      }
       if (req.method === 'POST' && url.pathname.startsWith('/api/')) {
         const supplied = Buffer.from(String(req.headers['x-saveup-csrf'] || ''));
         const expected = Buffer.from(csrfToken);
         if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) throw new InputError('Reload the app before saving.', 403);
         if (!req.headers['content-type']?.startsWith('application/json')) throw new InputError('JSON is required.', 415);
         let text = '', size = 0;
+        // Receipt photos are resized in the browser first; everything else stays small.
+        const limit = url.pathname === '/api/receipts/scan' ? Math.ceil(MAX_IMAGE_BYTES * 4 / 3) + 4096 : 32768;
         for await (const chunk of req) {
           size += chunk.length;
-          if (size > 32768) throw new InputError('Request too large.', 413);
+          if (size > limit) throw new InputError(limit > 32768 ? 'That photo is too large. Try again.' : 'Request too large.', 413);
           text += chunk;
         }
         let body;
         try { body = JSON.parse(text || '{}'); } catch { throw new InputError('Invalid JSON.'); }
         if (!body || typeof body !== 'object' || Array.isArray(body)) throw new InputError('A JSON object is required.');
+        if (environment !== 'sandbox' && sandboxOnly.has(url.pathname)) throw new InputError('That test action is only available in Sandbox.', 404);
+        if (url.pathname === '/api/receipts/scan') {
+          if (typeof body.image !== 'string' || !body.image || !/^[A-Za-z0-9+/]+={0,2}$/.test(body.image)) throw new InputError('Choose a receipt photo.');
+          // Reading can take a while, so it runs outside the save queue. Nothing is saved until the user confirms.
+          const parsed = await reader.read(body.image, body.mediaType);
+          return json(200, await mutate(async () => ({ imageId: store.saveReceiptImage(body.image, body.mediaType), parsed,
+            duplicates: store.receiptDuplicates(parsed, store.state().transactions) })));
+        }
         const result = await mutate(async () => {
           if (url.pathname === '/api/demo/connect') {
             if (!store.items().some(i => i.id === 'sample-bank')) {
@@ -75,10 +96,10 @@ export function createApp({ store, client, csrfToken = randomBytes(32).toString(
             if (item.cursor !== 'demo-posted') store.applySync(item.id, fixtureBatch(true));
           } else if (url.pathname === '/api/plaid/link-token') {
             const token = await client.call('/link/token/create', { user: { client_user_id: store.userId },
-              client_name: 'SaveUp Sandbox MVP', products: ['transactions'], country_codes: ['US'], language: 'en', transactions: { days_requested: 90 } });
+              client_name: environment === 'sandbox' ? 'SaveUp Sandbox MVP' : 'SaveUp', products: ['transactions'], country_codes: ['US'], language: 'en', transactions: { days_requested: 90 } });
             return { linkToken: token.link_token };
           } else if (url.pathname === '/api/plaid/exchange') {
-            await exchange(body.publicToken);
+            await exchange(body.publicToken, body.institutionName);
           } else if (url.pathname === '/api/plaid/test-item') {
             const token = await client.call('/sandbox/public_token/create', { institution_id: 'ins_109508', initial_products: ['transactions'] });
             await exchange(token.public_token);
@@ -94,6 +115,13 @@ export function createApp({ store, client, csrfToken = randomBytes(32).toString(
             store.review(body.id, body);
           } else if (url.pathname === '/api/budget') {
             store.saveBudget(body);
+          } else if (url.pathname === '/api/receipts/check') {
+            // Before saving a purchase entered by hand: is its bank charge already in the inbox?
+            return store.receiptDuplicates(store.checkReceipt(body.receipt), store.state().transactions, typeof body.id === 'string' ? body.id : null);
+          } else if (url.pathname === '/api/receipts/save') {
+            store.saveReceipt(body);
+          } else if (url.pathname === '/api/receipts/remove') {
+            store.removeReceipt(body.id);
           } else throw new InputError('Endpoint not found.', 404);
           return state();
         });
@@ -108,7 +136,7 @@ export function createApp({ store, client, csrfToken = randomBytes(32).toString(
       try { data = await readFile(filename); } catch { throw new InputError('Not found.', 404); }
       res.writeHead(200, { 'Content-Type': types[path.extname(filename)] }); res.end(req.method === 'HEAD' ? undefined : data);
     } catch (error) {
-      json(error.status || 500, { error: error instanceof InputError ? error.message : (error.code || 'Something went wrong. Please try again.') });
+      json(error.status || 500, { error: error instanceof InputError || error instanceof ReceiptError ? error.message : (error.code || 'Something went wrong. Please try again.') });
     }
   });
   return { server, state };
@@ -116,15 +144,20 @@ export function createApp({ store, client, csrfToken = randomBytes(32).toString(
 
 export async function start() {
   try { loadEnvFile(fileURLToPath(new URL('./.env.local', import.meta.url))); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const dataDir = process.env.SAVEUP_DATA_DIR || path.join(process.env.LOCALAPPDATA || path.join(homedir(), '.local', 'share'), 'SaveUp', 'sandbox-mvp');
+  const environment = process.env.PLAID_ENV || 'sandbox';
+  const client = plaidClient({ clientId: process.env.PLAID_CLIENT_ID, secret: process.env.PLAID_SECRET, environment });
+  // Real and test data live in different folders, each with its own encryption key.
+  const dataDir = process.env.SAVEUP_DATA_DIR || path.join(process.env.LOCALAPPDATA || path.join(homedir(), '.local', 'share'), 'SaveUp', environment === 'production' ? 'production' : 'sandbox-mvp');
   await mkdir(dataDir, { recursive: true, mode: 0o700 });
   const keyPath = path.join(dataDir, 'token.key');
   try { await writeFile(keyPath, randomBytes(32), { flag: 'wx', mode: 0o600 }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
-  const store = new Store(path.join(dataDir, 'saveup.sqlite'), await readFile(keyPath));
-  const client = plaidClient({ clientId: process.env.PLAID_CLIENT_ID, secret: process.env.PLAID_SECRET, environment: process.env.PLAID_ENV || 'sandbox' });
-  const { server } = createApp({ store, client });
-  server.listen(Number(process.env.PORT || 4188), '127.0.0.1', () => console.log(`SaveUp MVP: http://127.0.0.1:${server.address().port} (${client.configured ? 'Plaid Sandbox configured' : 'sample data available; Plaid credentials not configured'})`));
+  const store = new Store(path.join(dataDir, 'saveup.sqlite'), await readFile(keyPath), environment);
+  const reader = receiptReader({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const { server } = createApp({ store, client, reader });
+  const status = environment === 'production' ? (client.configured ? 'Plaid Production: real bank data' : 'Plaid Production credentials missing') : (client.configured ? 'Plaid Sandbox configured' : 'sample data available; Plaid credentials not configured');
+  server.listen(Number(process.env.PORT || 4188), '127.0.0.1', () => console.log(`SaveUp MVP: http://127.0.0.1:${server.address().port} (${status})\nReceipt reading: ${reader.configured ? 'on' : 'off (add ANTHROPIC_API_KEY to mvp/.env.local)'}
+Data folder: ${dataDir}`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => server.close(() => store.close()));
   return server;
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) start().catch(() => { console.error('Could not start SaveUp. Check the local configuration and data-folder access.'); process.exitCode = 1; });
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) start().catch(error => { console.error(`Could not start SaveUp. ${/PLAID_ENV|data folder/.test(error.message) ? error.message : 'Check the local configuration and data-folder access.'}`); process.exitCode = 1; });

@@ -7,7 +7,7 @@ Mendel is an aspiring programmer and doesn't have a deep understand of how the c
 ## Start here
 
 * Read `README.md` and `docs/project-status.md`; consult `docs/product-spec.md` for the larger vision.
-* For the current MVP/Figma handoff, read `docs/claude-handoff.md`. Active app code is `mvp/`; `prototype/` is the earlier mock-data app. Continue on `feature/plaid-sandbox` for this handoff.
+* For the current MVP/Figma handoff, read `docs/claude-handoff.md`. Active app code is `mvp/`; `prototype/` is the earlier mock-data app. Real-bank (Production) mode is on `feature/plaid-production`, branched from `feature/plaid-sandbox`. Never print, copy, or commit Production secrets, access tokens, or real transaction data.
 * This GitHub repository is the shared source for future work. The earlier Sites checkout is an archived starting point, not a second place to develop the app.
 * Run `git status --short --branch` before editing. Preserve existing work; never reset, discard, or overwrite another assistant's changes.
 * Mendel alternates Codex and Claude Code in this same local folder. Reuse the current task branch when continuing a handoff. Do not run concurrent editors against the same checkout. If parallel work is explicitly requested, use separate branches and worktrees or clones.
@@ -15,7 +15,7 @@ Mendel is an aspiring programmer and doesn't have a deep understand of how the c
 
 ## Product boundaries
 
-* Current MVP scope is Plaid Sandbox integration, the basic review inbox, and weekly category budgeting only. Use Figma as visual reference for those features; do not implement the whole file. Receipt scanning, splits/IOUs, plans, subscriptions, AI/guide screens, and other advanced features are deferred unless Mendel explicitly expands scope.
+* Current MVP scope is Plaid integration (Sandbox, plus Production for Mendel's own accounts, approved November 1, 2026), the basic review inbox, weekly category budgeting, and purchases logged by hand or from a receipt with an optional bank-charge match (added November 1, 2026). Use Figma as visual reference for those features; do not implement the whole file. Shared splits/IOUs, plans, subscriptions, AI/guide screens, and other advanced features are deferred unless Mendel explicitly expands scope.
 * Preserve the icy-blue Friendly Spatial style: floating white cards, navy type, bright blue pills, soft shadows, dimensional icons, generous touch targets, and mobile-safe spacing.
 * Keep review deliberate: a suggestion or category selection alone does not confirm a transaction.
 * Keep bank settlement (pending/posted) separate from user review. A changed final amount requires review again; posting must not duplicate a purchase.

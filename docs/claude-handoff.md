@@ -46,7 +46,7 @@ This runs 11 older-prototype tests and 18 MVP tests. For interface changes, insp
 
 ## Plaid status and test credentials
 
-- **Sandbox only.** The adapter rejects Production. No real bank credentials are needed.
+- **Update (Nov 1):** `feature/plaid-production` adds an opt-in Production mode with its own data folder. Sandbox remains the default; see docs/mvp-setup.md.
 - This PC already has the client ID and Sandbox secret in **ignored `mvp/.env.local`**. Preserve it. Another clone needs its own local configuration from `mvp/.env.example` and the [Plaid Dashboard keys page](https://dashboard.plaid.com/developers/keys).
 - Do not print, commit, upload, or paste the secret, Item access tokens, database, or encryption key.
 - Banks → **Connect with Plaid Link** opens the actual Plaid SDK. You can skip the optional phone prompt. Alternatively, test phone **`415-555-0133`**, verification code **`123456`**, is an official starter profile ([Plaid profiles](https://plaid.com/docs/sandbox/profiles/)). This profile may show saved test accounts.

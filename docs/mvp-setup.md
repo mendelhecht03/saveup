@@ -1,8 +1,8 @@
 # First MVP slice: connect → import → review
 
-This is a **local, single-user development milestone**, separate from the static prototype. It supports Plaid Sandbox only. The initial slice proves that imported bank facts and your review choices survive reloads and restarts.
+This is a **local, single-user development milestone**, separate from the static prototype. It supports Plaid Sandbox and, when configured, Plaid Production for your own real accounts. The initial slice proves that imported bank facts and your review choices survive reloads and restarts.
 
-The agreed MVP is limited to **Plaid integration, the basic review inbox, and weekly category budgeting**. Figma supplies visual direction for those features; the full file is not an implementation checklist. Receipts/OCR, splits/IOUs, plans, subscriptions, AI assistance, and the other app screens are deferred.
+The agreed MVP is limited to **Plaid integration, the basic review inbox, and weekly category budgeting**. Figma supplies visual direction for those features; the full file is not an implementation checklist. Purchases logged by hand or scanned from a receipt, with an optional bank-charge match, were added November 1, 2026 (see project-status.md). Shared splits/IOUs, plans, subscriptions, AI assistance, and the other app screens are deferred.
 
 ## Start now, without credentials
 
@@ -28,7 +28,7 @@ The sample week is November 1–7, 2026, matching the Figma design. Sample fixtu
 
 ## Enable actual Plaid Sandbox requests
 
-Create `mvp/.env.local` from `mvp/.env.example` if it does not exist. The setup may already have created the empty local file for you. Add your **Plaid client ID and Sandbox secret** from the [Plaid Dashboard](https://dashboard.plaid.com/overview). Never paste secrets into chat or commit them. Do not use Production credentials.
+Create `mvp/.env.local` from `mvp/.env.example` if it does not exist. The setup may already have created the empty local file for you. Add your **Plaid client ID and Sandbox secret** from the [Plaid Dashboard](https://dashboard.plaid.com/overview). Never paste secrets into chat or commit them. For real accounts, see the Production section below.
 
 ```dotenv
 PLAID_CLIENT_ID=your_client_id
@@ -48,6 +48,20 @@ An empty initial response can mean Plaid is still preparing history. The connect
 
 Local setup status, November 1: Sandbox credentials were configured and Plaid successfully issued a Link token. The real Link window opened inside the app. The interactive test-bank completion, token exchange, and actual imported transaction history have not yet been verified together. Credentials remain only in the ignored local environment file.
 
+## Use your real bank (Plaid Production)
+
+Requires a Plaid team approved for Production (or a Trial plan) with the Transactions product. Big banks such as Chase, Bank of America and Wells Fargo also need their OAuth registration completed in the Dashboard before they appear in Link.
+
+1. Stop `npm run mvp`.
+2. Edit `mvp/.env.local` yourself (never in chat). Set `PLAID_ENV=production`, replace `PLAID_SECRET` with the **Production** secret from Developers → Keys, and set an explicit data folder outside the repo and OneDrive, for example `SAVEUP_DATA_DIR=C:\dev\saveup-local-data\production`.
+3. Start `npm run mvp` from an ordinary terminal. The first lines print `Plaid Production: real bank data` and the data folder in use.
+4. Open **http://127.0.0.1:4188** in the PC's browser → Banks → **Connect with Plaid**, and sign in to your bank. Bank sign-in pop-ups work on desktop; the phone link has no registered OAuth redirect, so connect from the PC and review on the phone afterward.
+5. If the inbox is empty, wait a few minutes and choose **Import latest transactions**.
+
+Production mode removes the sample bank, Sandbox test-bank and Sandbox refresh actions (the server also rejects them). Each data folder is labeled with its environment on first use and refuses the other one, so real and test records never mix; folders created earlier stay Sandbox. To go back to test data, set `PLAID_ENV=sandbox`, the Sandbox secret, and the Sandbox folder.
+
+Known gaps for real banks: no reconnect flow when a bank asks you to sign in again (`ITEM_LOGIN_REQUIRED`), no disconnect button (remove an Item from the Plaid Dashboard for now), no webhooks or automatic imports, and transaction details are stored unencrypted in SQLite on this PC (only the Plaid access tokens are encrypted). The temporary phone link (`npm run mvp:phone`) also serves real data when the server is in Production; anyone holding the full link can view it until it expires, so don't share or screenshot it.
+
 ## What is saved
 
 The server stores SQLite data at `%LOCALAPPDATA%\SaveUp\sandbox-mvp` on Windows. Other platforms use `~/.local/share/SaveUp/sandbox-mvp`. This is outside the Git repository and the OneDrive project folder. `SAVEUP_DATA_DIR` can override the location.
@@ -60,7 +74,7 @@ Node 24 may print an experimental warning for its built-in SQLite module. No thi
 
 ## Implementation and current limits
 
-- `mvp/plaid.mjs`: Sandbox-only HTTP adapter and full-pagination sync collection.
+- `mvp/plaid.mjs`: HTTP adapter fixed to the Sandbox or Production host and full-pagination sync collection.
 - `mvp/store.mjs`: SQLite storage, separate bank facts and annotations, transfer rules, revision checks, and atomic cursor updates.
 - `mvp/server.mjs`: local API, token exchange, encrypted-token handling, and static app serving.
 - `mvp/public/`: responsive inbox, review, week totals, and bank controls.

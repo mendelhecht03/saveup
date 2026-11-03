@@ -135,8 +135,55 @@ test('failed later pages never return a partial import', async () => {
     return { added: [{ transaction_id: 'not-committed' }], modified: [], removed: [], accounts: [], next_cursor: 'next', has_more: true };
   }, 'token'), /ITEM_LOGIN_REQUIRED/);
 });
+test('only the fixed Sandbox and Production hosts are reachable', async () => {
+  for (const environment of ['development', 'https://evil.example', '__proto__']) assert.throws(() => plaidClient({ environment }), /sandbox or production/);
+  let sentUrl;
+  const client = plaidClient({ clientId: 'id', secret: 'secret', environment: 'production', fetchImpl: async url => { sentUrl = url; return new Response('{}', { status: 200 }); } });
+  await client.call('/transactions/sync', {});
+  assert.equal(sentUrl, 'https://production.plaid.com/transactions/sync'); assert.equal(client.environment, 'production');
+  await assert.rejects(plaidClient({ environment: 'production' }).call('/link/token/create', {}), /PRODUCTION_CREDENTIALS_MISSING/);
+});
+test('a data folder keeps one environment; real and test records never mix', async t => {
+  const folder = await mkdtemp(path.join(tmpdir(), 'saveup-env-'));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const key = randomBytes(32), sandboxFile = path.join(folder, 'sandbox.sqlite'), liveFile = path.join(folder, 'live.sqlite');
+  new Store(sandboxFile, key).close();
+  assert.throws(() => new Store(sandboxFile, key, 'production'), /holds sandbox data/);
+  const live = new Store(liveFile, key, 'production');
+  assert.throws(() => live.addItem({ id: 'sample-bank', provider: 'fixture', name: 'Sample', token: 'fixture-only' }), /only available in Sandbox/);
+  assert.throws(() => live.addItem({ id: 'x', provider: 'plaid', name: 'Bank', token: 'access-sandbox-x' }), /production access tokens/);
+  live.addItem({ id: 'real', provider: 'plaid', name: 'Bank', token: 'access-production-x' }); live.close();
+  assert.throws(() => new Store(liveFile, key), /holds production data/);
+  // A folder from before the label existed already holds Sandbox banks, so it stays Sandbox.
+  const legacyFile = path.join(folder, 'legacy.sqlite'), legacy = new Store(legacyFile, key);
+  legacy.addItem({ id: 'old', provider: 'plaid', name: 'Old', token: 'access-sandbox-old' });
+  legacy.db.prepare("DELETE FROM settings WHERE key='environment'").run(); legacy.close();
+  assert.throws(() => new Store(legacyFile, key, 'production'), /holds sandbox data/);
+});
+test('Production mode blocks test actions, names the bank, and accepts only production tokens', async t => {
+  const store = new Store(':memory:', randomBytes(32), 'production');
+  const calls = [], client = { configured: true, environment: 'production', call: async route => {
+    calls.push(route);
+    if (route === '/item/public_token/exchange') return { item_id: 'live-item', access_token: 'access-production-secret' };
+    if (route === '/transactions/sync') return { ...fixtureBatch(), next_cursor: 'live-ready', has_more: false };
+    throw new Error('Unexpected test endpoint');
+  } };
+  assert.throws(() => createApp({ store, client: { ...client, environment: 'sandbox' } }), /do not match/);
+  const { server } = createApp({ store, client }); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { await new Promise(resolve => server.close(resolve)); store.close(); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const state = await (await fetch(base + '/api/state')).json();
+  assert.equal(state.environment, 'production');
+  const post = (route, body = {}) => fetch(base + route, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-SaveUp-CSRF': state.csrfToken }, body: JSON.stringify(body) });
+  for (const route of ['/api/demo/connect', '/api/demo/post', '/api/plaid/test-item', '/api/plaid/refresh']) assert.equal((await post(route)).status, 404, route);
+  assert.equal((await post('/api/plaid/exchange', { publicToken: 'public-sandbox-x' })).status, 400);
+  const response = await post('/api/plaid/exchange', { publicToken: 'public-production-x', institutionName: 'Chase' });
+  const text = await response.text();
+  assert.equal(response.status, 200); assert.equal(text.includes('access-production-secret'), false);
+  assert.equal(JSON.parse(text).items[0].name, 'Chase');
+  assert.deepEqual(calls, ['/item/public_token/exchange', '/transactions/sync']);
+});
 test('Sandbox is enforced and credentials remain in server request headers', async () => {
-  assert.throws(() => plaidClient({ environment: 'production' }), /sandbox only/);
   let sent;
   const client = plaidClient({ clientId: 'test-id', secret: 'test-secret', fetchImpl: async (url, options) => {
     sent = { url, options }; return new Response(JSON.stringify({ ok: true }), { status: 200 });
