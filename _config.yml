@@ -4,6 +4,7 @@
 exclude:
   - prototype
   - mvp
+  - lite
   - docs
   - scripts
   - tests
