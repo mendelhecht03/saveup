@@ -57,12 +57,17 @@ export function txnRow(S, t, { queue = false } = {}) {
   const sug = !t.reviewed ? L.suggest(S, t) : null, sc = sug && S.categories.find(x => x.id === sug.categoryId);
   const { icon, emoji } = txnIcon(S, t);
   const data = { id: t.id, flip: queue ? t.id : null };
-  if (!queue) return row({ icon, emoji, title: t.name, sub: `${shortDate(t.date)} · ${c ? c.name : t.transfer && t.transferKind === 'own' ? 'Between my accounts' : t.transferKind === 'income' ? 'Income' : accountLabel(S, t)}`, amount: signed(t), amountTone: t.amountCents < 0 ? 'in' : null, pillList: statusPills(t), act: 'open', data });
+  if (!queue) {
+    // Once reviewed, the budget shows as a solid chip with a check: the final label.
+    const done = t.reviewed && (c ? catChip(c, { confirmed: true }) : t.transferKind === 'own' ? categoryChip('My accounts', 'gray', { confirmed: true }) : t.transferKind === 'income' ? categoryChip('Income', 'green', { confirmed: true }) : '');
+    return row({ icon, emoji, title: t.name, sub: `${shortDate(t.date)} · ${accountLabel(S, t)}`, chip: done || null, amount: signed(t), amountTone: t.amountCents < 0 ? 'in' : null, pillList: statusPills(t), act: 'open', data });
+  }
   let chip;
   if (t.transfer && !sug) chip = statusPill('Needs purpose', 'warn');
-  else if (sc) chip = catChip(sc);
-  else if (sug?.transferKind === 'own') chip = statusPill('My accounts', 'info');
+  else if (sc) chip = catChip(sc, { suggested: true });
+  else if (sug?.transferKind === 'own') chip = categoryChip('My accounts', 'gray', { suggested: true });
+  else if (sug?.transferKind === 'income') chip = categoryChip('Income', 'green', { suggested: true });
   else chip = statusPill(t.amountChanged ? 'Amount changed' : 'Needs review', t.amountChanged ? 'warn' : 'info');
   const canSwipe = sug && (sc || sug.transferKind === 'own' || sug.transferKind === 'income');
-  return row({ icon, emoji, title: t.name, sub: `${shortDate(t.date)} · ${bankWord(t)}`, chip, amount: signed(t), amountTone: t.amountCents < 0 ? 'in' : null, chevron: false, act: 'open', data, swipe: canSwipe ? { act: 'confirm-suggestion', label: `Confirm ${sc ? sc.name : sug.transferKind === 'own' ? 'my accounts' : 'income'}` } : null });
+  return row({ icon, emoji, title: t.name, sub: `${shortDate(t.date)} · ${bankWord(t)}`, chip, amount: signed(t), amountTone: t.amountCents < 0 ? 'in' : null, chevron: false, act: 'open', data, swipe: { confirm: canSwipe ? `Confirm ${sc ? sc.name : sug.transferKind === 'own' ? 'my accounts' : 'income'}` : null, scan: t.amountCents > 0 && !t.transfer ? 'Scan receipt' : null } });
 }

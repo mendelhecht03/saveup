@@ -18,7 +18,7 @@ export function inboxScreen({ S, ui, today }) {
     <span class="week-label">${line('calendar', { size: 16 })}${esc(rangeLabel(start, end))}</span>
     ${iconButton('chevronRight', 'Next week', { act: 'week', data: { d: 1 }, disabled: ui.weekOffset >= 0 })}</span>`;
   const reviewed = week.length - open.length;
-  const sub = week.length ? `<b>${open.length ? `${open.length} to review ${ui.weekOffset === 0 ? 'this week' : 'that week'}` : 'This week is reviewed'}</b>${reviewed} of ${week.length} reconciled. Swipe right to confirm a suggestion, or tap to review.` : '';
+  const sub = week.length ? `<b>${open.length ? `${open.length} to review ${ui.weekOffset === 0 ? 'this week' : 'that week'}` : 'This week is reviewed'}</b>${reviewed} of ${week.length} reconciled. Swipe right to confirm a suggestion, left to scan its receipt, or tap to review.` : '';
   let body;
   if (!S.items.length && !S.txns.length) body = emptyState({ icon: 'bank', title: 'Connect a bank to fill your inbox', text: 'Your purchases arrive here each week for you to review.', action: button('Connect a bank', { act: 'go', data: { to: 'more/accounts' } }) });
   else if (!open.length) body = emptyState({ icon: 'inbox-done', title: week.length ? 'Everything here is reviewed' : 'Nothing this week yet', text: older.length ? `${older.length} older purchases are still waiting.` : 'New purchases show up after the next sync.', action: older.length ? button('Review older purchases', { variant: 'secondary', act: 'jump', data: { date: older[0].date } }) : '' });

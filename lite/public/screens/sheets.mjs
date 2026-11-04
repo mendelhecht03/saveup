@@ -1,15 +1,16 @@
 // Bottom sheets: review a purchase, add one by hand, edit a budget or a plan.
 import * as L from '../logic.mjs';
-import { iconTile, button, choiceList, textField, moneyField, textArea, selectField, segmented, stepSlider, checkbox, note, pills, esc, emptyState } from '../ui/components.mjs';
+import { iconTile, button, choiceList, textField, moneyField, textArea, selectField, segmented, stepSlider, checkbox, note, pills, esc, emptyState, categoryChip } from '../ui/components.mjs';
 import { ART } from '../ui/icons.mjs';
 import { txnIcon, statusPills, signed, longDate, accountLabel, catArt } from './shared.mjs';
 
 export const PRIORITY_STOPS = ['Low', 'Normal', 'High', 'Essential'];
 
-function categoryChoices(S, selected) {
+function categoryChoices(S, selected, suggestedId) {
   // The suggested or chosen budget goes first so it's within thumb reach.
   const cats = [...S.categories].sort((a, b) => (b.id === selected) - (a.id === selected));
-  return cats.map(c => ({ value: c.id, label: c.name, sub: c.description, icon: catArt(c), emoji: c.emoji }));
+  return cats.map(c => ({ value: c.id, label: c.name, sub: c.description, icon: catArt(c), emoji: c.emoji,
+    badge: c.id === suggestedId ? categoryChip('Suggested', 'sky', { suggested: true }) : '' }));
 }
 
 export function reviewSheet(S, t) {
@@ -29,7 +30,7 @@ export function reviewSheet(S, t) {
     ${t.matchedFrom ? note(`Linked to “${t.matchedFrom}”, which you logged by hand. Counts once.`) : ''}
     ${sug ? note(`Suggested from ${sug.exact ? 'an identical past purchase' : 'past purchases here'}. Nothing is confirmed until you tap Confirm.`) : ''}
     ${transfer}
-    <div class="cats" ${t.transfer && kind !== 'spending' ? 'hidden' : ''}>${choiceList('cat', categoryChoices(S, selected), { value: selected, legend: 'Which budget?', hint: t.transfer ? '' : 'The store name and amount don’t tell us what you bought.' })}</div>
+    <div class="cats" ${t.transfer && kind !== 'spending' ? 'hidden' : ''}>${choiceList('cat', categoryChoices(S, selected, sug?.categoryId), { value: selected, legend: 'Which budget?', hint: t.transfer ? '' : 'The store name and amount don’t tell us what you bought.' })}</div>
     <div class="stack"><b class="section-label">Optional details</b>
       ${textArea('note', 'Note', { value: t.note, placeholder: 'e.g. toothbrush, speeding ticket', optional: true, rows: 2 })}
       ${stepSlider('priority', 'Priority', PRIORITY_STOPS, { value: Math.min(t.priority || 2, PRIORITY_STOPS.length), optional: true })}</div>
@@ -76,4 +77,6 @@ export function planSheet(S, p) {
     ${button(p ? 'Save plan' : 'Add plan', { type: 'submit', full: true, size: 'lg' })}</form>`;
 }
 
-export const scanSheet = () => emptyState({ icon: 'scan-receipt', title: 'Receipt scanning is on its way', text: 'You’ll be able to take a photo or choose a file, check what was read, and split it across budgets. For now, add the purchase by hand.', action: button('Add purchase', { act: 'manual' }) });
+export const scanSheet = t => emptyState({ icon: 'scan-receipt', title: 'Receipt scanning is on its way',
+  text: `${t ? `Soon you’ll scan the receipt for ${t.name} (${signed(t)}) here. ` : ''}You’ll be able to take a photo or choose a file, check what was read, and split it across budgets.${t ? '' : ' For now, add the purchase by hand.'}`,
+  action: t ? '' : button('Add purchase', { act: 'manual' }) });

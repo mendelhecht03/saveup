@@ -69,7 +69,7 @@ function openSheet(next) {
     manual: () => [manualSheet(S, L.todayISO()), 'Add purchase'],
     category: () => { const c = S.categories.find(x => x.id === sheet.id); return [categorySheet(S, c), c ? `${c.name} budget` : 'New budget']; },
     plan: () => { const p = S.plans.find(x => x.id === sheet.id); return [planSheet(S, p), p ? 'Edit plan' : 'Plan a purchase']; },
-    scan: () => [scanSheet(), 'Scan receipt']
+    scan: () => [scanSheet(S.txns.find(x => x.id === sheet.id)), 'Scan receipt']
   };
   const [body, title] = views[sheet.type]();
   $('#sheet-root').innerHTML = sheetFrame(body, { title });
@@ -177,10 +177,16 @@ async function openLink() {
 }
 
 // ---- gestures
-enableSwipe(document, async row => {
-  const t = S.txns.find(x => x.id === row.dataset.id), sug = t && L.suggest(S, t);
-  if (!t || !sug || !row.closest('#queue')) { say('Sample row only'); return render(); }
-  await reconcile({ id: t.id, categoryId: sug.categoryId, transferKind: sug.transferKind || null, note: t.note, priority: t.priority }, { row });
+enableSwipe(document, {
+  onConfirm: async row => {
+    const t = S.txns.find(x => x.id === row.dataset.id), sug = t && L.suggest(S, t);
+    if (!t || !sug || !row.closest('#queue')) { say('Sample row only'); return render(); }
+    await reconcile({ id: t.id, categoryId: sug.categoryId, transferKind: sug.transferKind || null, note: t.note, priority: t.priority }, { row });
+  },
+  onScan: row => {
+    if (!row.closest('#queue')) return say('Sample row only');
+    openSheet({ type: 'scan', id: row.dataset.id });
+  }
 });
 enablePullToRefresh($('#ptr'), {
   canStart: () => !sheet && !busy && S?.items.length > 0,

@@ -61,28 +61,38 @@ export function closeSheet(done) {
   setTimeout(done, 240);
 }
 
-// ---- swipe right on a row to confirm its suggestion. A short drag springs back;
-// past the threshold the row "arms", and letting go sends it away.
-export function enableSwipe(root, onConfirm) {
+// ---- swipe a row. Right confirms its suggestion and sends the row away; left
+// opens a receipt scan for it and springs back. A short drag always springs
+// back; past the threshold the row "arms" so letting go is a clear decision.
+export function enableSwipe(root, { onConfirm, onScan }) {
   let drag = null;
   root.addEventListener('pointerdown', e => {
     const row = e.target.closest('.row-swipe');
     if (!row || e.button !== 0) return;
-    drag = { row, main: row.querySelector('.row-main'), x: e.clientX, y: e.clientY, dx: 0, active: false, id: e.pointerId };
+    drag = { row, main: row.querySelector('.row-main'), x: e.clientX, y: e.clientY, dx: 0, active: false, id: e.pointerId,
+      canRight: row.hasAttribute('data-swipe-confirm'), canLeft: row.hasAttribute('data-swipe-scan') };
   });
   root.addEventListener('pointermove', e => {
     if (!drag || e.pointerId !== drag.id) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (!drag.active) {
       if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { drag = null; return; } // a scroll, not a swipe
-      if (dx < 8) return;
-      drag.active = true; drag.row.classList.add('is-swiping'); drag.row.setPointerCapture(e.pointerId);
+      if (!(dx > 8 && drag.canRight) && !(dx < -8 && drag.canLeft)) return;
+      drag.active = true; drag.row.setPointerCapture(e.pointerId);
     }
-    drag.dx = Math.max(0, dx);
-    const width = drag.row.offsetWidth, resist = drag.dx > width * 0.6 ? width * 0.6 + (drag.dx - width * 0.6) * 0.3 : drag.dx;
-    drag.main.style.transform = `translateX(${resist}px)`;
-    drag.row.classList.toggle('is-armed', drag.dx > width * 0.35);
+    drag.dx = Math.min(drag.canRight ? Infinity : 0, Math.max(drag.canLeft ? -Infinity : 0, dx));
+    const width = drag.row.offsetWidth, d = Math.abs(drag.dx), sign = Math.sign(drag.dx);
+    const resist = d > width * 0.6 ? width * 0.6 + (d - width * 0.6) * 0.3 : d;
+    drag.main.style.transform = `translateX(${sign * resist}px)`;
+    drag.row.classList.toggle('is-swiping-right', drag.dx > 0);
+    drag.row.classList.toggle('is-swiping-left', drag.dx < 0);
+    drag.row.classList.toggle('is-armed', d > width * 0.35);
   });
+  const springBack = (row, main) => {
+    main.animate([{ transform: main.style.transform }, { transform: 'none' }], { duration: reduced() ? 1 : 420, easing: SPRING });
+    main.style.transform = '';
+    row.classList.remove('is-swiping-right', 'is-swiping-left', 'is-armed');
+  };
   const end = e => {
     if (!drag || e.pointerId !== drag.id) return;
     const { row, main, active, dx } = drag;
@@ -92,14 +102,13 @@ export function enableSwipe(root, onConfirm) {
     const swallow = ev => { ev.stopPropagation(); ev.preventDefault(); };
     row.addEventListener('click', swallow, { capture: true, once: true });
     setTimeout(() => row.removeEventListener('click', swallow, { capture: true }), 400);
-    const width = row.offsetWidth;
-    if (dx > width * 0.35 && e.type === 'pointerup') {
+    const width = row.offsetWidth, armed = Math.abs(dx) > width * 0.35 && e.type === 'pointerup';
+    if (armed && dx > 0) {
       const anim = main.animate([{ transform: main.style.transform }, { transform: `translateX(${width}px)` }], { duration: reduced() ? 1 : 220, easing: EASE, fill: 'forwards' });
       anim.onfinish = () => onConfirm(row);
     } else {
-      main.animate([{ transform: main.style.transform }, { transform: 'none' }], { duration: reduced() ? 1 : 420, easing: SPRING });
-      main.style.transform = '';
-      row.classList.remove('is-swiping', 'is-armed');
+      springBack(row, main);
+      if (armed && dx < 0) onScan(row);
     }
   };
   root.addEventListener('pointerup', end);

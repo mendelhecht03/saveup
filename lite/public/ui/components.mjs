@@ -30,9 +30,13 @@ export const statusPill = (label, tone = 'info', { icon } = {}) => `<span class=
 export const pills = list => list.length ? `<span class="pill-row">${list.join('')}</span>` : '';
 
 // ---- category chip (pastel tint per budget)
-export const categoryChip = (name, tint = 'gray', { dropdown = false, act, data } = {}) => {
+// A suggested category is an outlined chip with a sparkle; a confirmed one is
+// solid with a check, so a guess never looks like a decision.
+export const categoryChip = (name, tint = 'gray', { dropdown = false, act, data, suggested = false, confirmed = false } = {}) => {
   const tag = act ? 'button' : 'span';
-  return `<${tag}${act ? ` type="button" data-act="${esc(act)}"` : ''}${attrs(data)} class="chip tint-${tint}">${esc(name)}${dropdown ? line('chevronDown', { size: 14 }) : ''}</${tag}>`;
+  const mark = suggested ? line('sparkle', { size: 13 }) : confirmed ? line('check', { size: 13 }) : '';
+  const label = suggested ? ` aria-label="Suggested: ${esc(name)}" title="Suggested, not confirmed"` : '';
+  return `<${tag}${act ? ` type="button" data-act="${esc(act)}"` : ''}${attrs(data)}${label} class="chip tint-${tint}${suggested ? ' chip-suggested' : ''}">${mark}${esc(name)}${dropdown ? line('chevronDown', { size: 14 }) : ''}</${tag}>`;
 };
 
 // ---- budget bar: spent (solid blue), pending (dotted amber), planned (striped green), left (pale)
@@ -60,7 +64,8 @@ export function barLegend(items, { layout = 'columns' } = {}) {
 export const card = (body, { cls: extra, tag = 'section', data, act } = {}) => `<${tag} class="${cls('card', extra)}"${act ? ` data-act="${esc(act)}"` : ''}${attrs(data)}>${body}</${tag}>`;
 
 // A list row: icon, title, subtitle, optional chip, amount, pills and chevron.
-// `swipe` marks a row that can be swiped to confirm its suggestion.
+// `swipe` marks a row that can be swiped: right to confirm its suggestion
+// (`swipe.confirm`, when there is one), left to scan a receipt (`swipe.scan`).
 export function row({ icon, emoji, title, sub, amount, amountTone, chip, pillList = [], chevron = true, act, data, swipe, tag = 'button', extra }) {
   // The outer row carries every data attribute; the button only needs the action and id.
   const open = tag === 'button' ? `<button type="button" class="row-main"${act ? ` data-act="${esc(act)}"` : ''}${attrs({ id: data?.id })}>` : '<div class="row-main">';
@@ -71,7 +76,8 @@ export function row({ icon, emoji, title, sub, amount, amountTone, chip, pillLis
     ${amount != null ? `<span class="${cls('row-amount', amountTone && `amount-${amountTone}`)}">${esc(amount)}</span>` : ''}
     ${extra || ''}${chevron ? `<span class="row-chev">${line('chevronRight', { size: 18 })}</span>` : ''}${close}`;
   if (!swipe) return `<div class="row"${attrs(data)}>${body}</div>`;
-  return `<div class="row row-swipe"${attrs(data)} data-swipe="${esc(swipe.act)}"><div class="swipe-under" aria-hidden="true">${line('check', { size: 20 })}<span>${esc(swipe.label)}</span></div>${body}</div>`;
+  const under = (side, icon, label) => label ? `<div class="swipe-under swipe-${side}" aria-hidden="true">${line(icon, { size: 20 })}<span>${esc(label)}</span></div>` : '';
+  return `<div class="row row-swipe"${attrs(data)}${swipe.confirm ? ' data-swipe-confirm' : ''}${swipe.scan ? ' data-swipe-scan' : ''}>${under('confirm', 'check', swipe.confirm)}${under('scan', 'camera', swipe.scan)}${body}</div>`;
 }
 
 export function listSection({ title, subtitle, icon, iconTone, action, rows = [], footer, id, cls: extra }) {
@@ -131,7 +137,7 @@ export function selectField(name, label, options, { value, optional } = {}) {
 export function choiceList(name, choices, { value, legend, hint } = {}) {
   return `<fieldset class="choices">${legend ? `<legend class="field-label">${esc(legend)}</legend>` : ''}${hint ? `<p class="field-hint">${esc(hint)}</p>` : ''}${choices.map(c => `<label class="choice${c.disabled ? ' is-disabled' : ''}">
     <input type="radio" name="${esc(name)}" value="${esc(c.value)}"${c.value === value ? ' checked' : ''}${c.disabled ? ' disabled' : ''}><span class="radio" aria-hidden="true"></span>
-    ${c.icon ? iconTile(c.icon, { emoji: c.emoji, size: 'sm', round: true }) : ''}<span class="grow"><b>${esc(c.label)}</b>${c.sub ? `<small>${esc(c.sub)}</small>` : ''}</span></label>`).join('')}</fieldset>`;
+    ${c.icon ? iconTile(c.icon, { emoji: c.emoji, size: 'sm', round: true }) : ''}<span class="grow"><b>${esc(c.label)}</b>${c.sub ? `<small>${esc(c.sub)}</small>` : ''}</span>${c.badge || ''}</label>`).join('')}</fieldset>`;
 }
 // Two to three side-by-side options (Cash | Card, Editable copy | Original).
 export const segmented = (name, options, { value, legend } = {}) => `<fieldset class="segmented">${legend ? `<legend class="field-label">${esc(legend)}</legend>` : ''}<span class="segmented-track">${options.map(([v, l, icon]) => `<label><input type="radio" name="${esc(name)}" value="${esc(v)}"${v === value ? ' checked' : ''}><span>${icon ? line(icon, { size: 18 }) : ''}${esc(l)}</span></label>`).join('')}</span></fieldset>`;

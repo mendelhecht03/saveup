@@ -8,6 +8,7 @@ import { budgetsScreen, budgetView } from '../public/screens/budgets.mjs';
 import { plannedScreen } from '../public/screens/planned.mjs';
 import { moreScreen, accountsScreen, historyScreen, historyHits, labScreen } from '../public/screens/more.mjs';
 import { galleryScreen } from '../public/screens/gallery.mjs';
+import { txnRow } from '../public/screens/shared.mjs';
 import { reviewSheet, manualSheet, categorySheet, planSheet } from '../public/screens/sheets.mjs';
 
 const today = '2026-11-04';
@@ -42,9 +43,22 @@ test('inbox shows about five rows, offers a swipe only when there is a suggestio
   L.applySync(s, 'item1', { added: Array.from({ length: 7 }, (_, i) => plaidTxn(`n${i}`, i ? 10 + i : 2.53, { name: i ? `Shop ${i}` : 'Kahans' })) });
   const html = inboxScreen({ S: s, ui: ui(), today });
   assert.equal((html.match(/data-flip=/g) || []).length, QUEUE_SIZE);
-  assert.equal((html.match(/data-swipe=/g) || []).length, 1, 'only the familiar Kahan’s row can be swiped');
+  assert.equal((html.match(/data-swipe-confirm/g) || []).length, 1, 'only the familiar Kahan’s row can be swiped to confirm');
+  assert.equal((html.match(/data-swipe-scan/g) || []).length, QUEUE_SIZE, 'every purchase can be swiped left to scan its receipt');
   assert.match(html, /2 more waiting/);
   assert.equal(s.txns.filter(t => !t.reviewed).length, 7);
+});
+
+test('a suggested budget looks different from a confirmed one', () => {
+  const s = L.newState();
+  L.applySync(s, 'item1', { added: [plaidTxn('k1', 2.53, { date: '2026-10-20' })] });
+  L.confirmTxn(s, { id: 'k1', categoryId: groceries });
+  L.applySync(s, 'item1', { added: [plaidTxn('k2', 2.53, { name: 'Kahans' })] });
+  const queue = inboxScreen({ S: s, ui: ui(), today });
+  assert.match(queue, /chip-suggested[^>]*>.*Groceries/s, 'the open purchase shows an outlined suggestion');
+  const done = txnRow(s, s.txns.find(t => t.id === 'k1'));
+  assert.doesNotMatch(done, /chip-suggested/, 'a reviewed purchase never looks like a suggestion');
+  assert.match(done, /Groceries/);
 });
 
 test('bank, review and match statuses render as separate pills', () => {

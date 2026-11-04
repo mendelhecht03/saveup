@@ -140,12 +140,18 @@ button.row-main:active { background: var(--surface-soft); }
 .row-chev { flex: none; color: var(--ink-3); }
 .row-swipe { touch-action: pan-y; }
 .row-swipe .row-main { will-change: transform; }
-.swipe-under { position: absolute; inset: 0; display: flex; align-items: center; gap: var(--s2); padding-left: var(--s5); background: var(--mint); color: var(--surface); font-weight: 800; opacity: 0; transition: opacity var(--t-fast); }
-.row-swipe.is-swiping .swipe-under { opacity: 1; }
+.swipe-under { position: absolute; inset: 0; display: flex; align-items: center; gap: var(--s2); padding: 0 var(--s5); color: var(--surface); font-weight: 800; opacity: 0; transition: opacity var(--t-fast); }
+.swipe-confirm { background: var(--mint); }
+.swipe-scan { justify-content: flex-end; background: var(--blue); }
+.row-swipe.is-swiping-right .swipe-confirm, .row-swipe.is-swiping-left .swipe-scan { opacity: 1; }
 .row-swipe.is-armed .swipe-under span { transform: scale(1.06); }
 .row-swipe.is-armed .swipe-under svg { transform: scale(1.2); transition: transform var(--t-fast) var(--ease-spring); }
 .row-leaving { animation: row-out var(--t-med) var(--ease) forwards; }
 @keyframes row-out { to { opacity: 0; transform: translateX(40px); } }
+
+/* A suggestion is a guess: outlined, white, sparkle. Confirmed is solid with a check. */
+.chip-suggested { background: var(--surface); border: 1.5px dashed currentColor; padding: 2.5px 9.5px; }
+.chip svg { flex: none; }
 
 /* ---- banner and notes */
 .banner { display: flex; align-items: center; gap: var(--s3); width: 100%; border-radius: var(--r-lg); padding: var(--s3) var(--s4); text-align: left; }
@@ -262,6 +268,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
   .row + .row::before { left: calc(var(--s3) + 48px); }
   .row-chip { max-width: 32%; }
   .row-chip .chip, .row-chip .pill { padding: 3px 8px; font-size: var(--text-xs); }
+  .row-chip .chip-suggested { padding: 1.5px 6.5px; }
   .btn { padding: 0 var(--s4); }
 }
 @media (prefers-reduced-motion: reduce) {
