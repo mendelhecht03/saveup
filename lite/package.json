@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.mjs",
     "phone": "node phone.mjs",
-    "check": "node --check server.mjs && node --check plaid.mjs && node --check phone.mjs && node --check phone-preview.mjs && node --check public/app.js && node --check public/logic.mjs && node --test tests/*.test.mjs"
+    "seed": "node sandbox/seed.mjs",
+    "check": "node --check server.mjs && node --check plaid.mjs && node --check phone.mjs && node --check phone-preview.mjs && node --check public/app.js && node --check public/logic.mjs && node --check sandbox/banks.mjs && node --check sandbox/receipts.mjs && node --check sandbox/seed.mjs && node --test tests/*.test.mjs"
   }
 }
