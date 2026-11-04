@@ -24,7 +24,7 @@ small { font-size: var(--text-sm); }
 /* ---- app frame */
 .app { max-width: 480px; margin: 0 auto; min-height: 100dvh; padding: calc(env(safe-area-inset-top) + var(--s3)) var(--gutter) calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--s6)); display: grid; align-content: start; gap: var(--s4); }
 .screen { display: grid; gap: var(--s4); align-content: start; }
-.screen-enter { animation: screen-in var(--t-med) var(--ease) both; }
+.screen-enter { animation: screen-in var(--t-med) var(--ease) backwards; }
 @keyframes screen-in { from { opacity: 0; transform: translateY(8px); } }
 
 /* ---- page header */

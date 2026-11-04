@@ -65,6 +65,10 @@ function render({ enter = false, firstBars = false } = {}) {
   const r = route(), tab = r.startsWith('receipt/') ? 'inbox' : r.split('/')[0];
   const focused = document.activeElement?.id === 'search';
   $('#screen-root').innerHTML = `<main class="screen${enter ? ' screen-enter' : ''}">${screenFor(r)({ S, ui, today: L.todayISO(), configured, ai, route: r })}</main>`;
+  // Floating buttons live outside the page, so its slide-in can't move them.
+  const fab = $('#screen-root #fab'), wasCollapsed = $('#fab-root #fab')?.classList.contains('is-collapsed');
+  if (fab) fab.classList.toggle('is-collapsed', Boolean(wasCollapsed) && scrollY >= 40);
+  $('#fab-root').replaceChildren(...(fab ? [fab] : []));
   $('#nav-root').innerHTML = bottomNav(tab, { badge: weekBadge() });
   if (focused) { const s = $('#search'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
   play(prev, document, { firstBars: firstBars || enter });
@@ -76,6 +80,19 @@ function fitComposer() {
   if (c && vv) { c.style.height = `${vv.height}px`; c.style.top = `${vv.offsetTop}px`; }
 }
 window.visualViewport?.addEventListener('resize', fitComposer);
+
+// Floating Add purchase / Scan receipt, like Splitwise's Add expense: they shrink to
+// icons while you scroll down the list and grow their labels back when you scroll
+// up or reach the top.
+let lastScroll = 0;
+addEventListener('scroll', () => {
+  const fab = document.getElementById('fab'), y = scrollY;
+  if (fab) {
+    if (y < 40 || y < lastScroll - 6) fab.classList.remove('is-collapsed');
+    else if (y > lastScroll + 6) fab.classList.add('is-collapsed');
+  }
+  lastScroll = y;
+}, { passive: true });
 window.visualViewport?.addEventListener('scroll', fitComposer);
 
 function openSheet(next) {
@@ -298,7 +315,7 @@ enablePullToRefresh($('#ptr'), {
   onRefresh: async () => { try { await api('/api/sync', {}); say('Up to date'); } catch (e) { say(e.message, true); } render(); }
 });
 
-$('#app').innerHTML = '<div id="screen-root"></div><div id="nav-root"></div>';
+$('#app').innerHTML = '<div id="screen-root"></div><div id="fab-root"></div><div id="nav-root"></div>';
 $('#overlay').innerHTML = '<div id="sheet-root"></div><div id="busy-root"></div><div id="toast-root"></div>';
 // Installable app: the service worker lets SaveUp open from the home screen.
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});

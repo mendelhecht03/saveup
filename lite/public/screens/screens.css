@@ -201,6 +201,18 @@
 .qa-tool:active { background: var(--blue-soft); }
 @media (prefers-reduced-motion: reduce) { .composer, .composer.is-closing, .composer-icon .tile, .qa-cats { animation: none; } }
 
+/* Floating Add purchase and Scan receipt (Splitwise's Add expense button). */
+.app:has(.fab-row) .screen { padding-bottom: 76px; }
+.fab-row { position: fixed; z-index: 19; right: max(var(--gutter), calc((100vw - 480px) / 2 + var(--gutter))); bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--s3));
+  display: flex; gap: var(--s2); animation: fab-in var(--t-slow) var(--ease-spring) both; }
+.fab-row .btn { min-height: 52px; padding: 0 var(--s4); box-shadow: var(--shadow-float); transition: padding var(--t-med) var(--ease-spring), transform var(--t-fast) var(--ease-spring); }
+.fab-row .btn:active { transform: scale(.94); }
+.fab-row .btn span { display: inline-block; max-width: 9em; overflow: hidden; white-space: nowrap; transition: max-width var(--t-med) var(--ease-spring), opacity var(--t-fast); }
+.fab-row.is-collapsed .btn { padding: 0 15px; gap: 0; }
+.fab-row.is-collapsed .btn span { max-width: 0; opacity: 0; }
+@keyframes fab-in { from { transform: translateY(24px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .fab-row, .fab-row .btn, .fab-row .btn span { animation: none; transition: none; } }
+
 @media (max-width: 359px) {
   .week-label { font-size: var(--text-xs); }
   .week-label svg { display: none; }
@@ -215,6 +227,8 @@
   .rline-amount { grid-column: 1 / -1; justify-self: end; }
   .select-chip select { max-width: 8em; }
   .week-done { flex-direction: column; align-items: flex-start; }
+  .fab-row .btn-secondary { padding: 0 15px; gap: 0; }
+  .fab-row .btn-secondary span { max-width: 0; opacity: 0; }
   .composer-line input { font-size: var(--text-lg); }
   .composer-amount input { font-size: var(--text-xl); }
   .composer-icon { width: 48px; height: 48px; }
