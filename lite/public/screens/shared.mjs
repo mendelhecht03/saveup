@@ -46,6 +46,7 @@ export function statusPills(t) {
   if (t.source === 'manual' && t.expectMatch) p.push(t.verified ? statusPill('Matched', 'ok') : statusPill('Awaiting bank match', 'blue', { icon: 'clock' }));
   if (t.matchedFrom) p.push(statusPill('Matched', 'ok', { icon: 'link' }));
   if (t.amountChanged) p.push(statusPill('Amount changed', 'warn'));
+  if (t.priority === L.ESSENTIAL) p.push(statusPill('Essential', 'ok'));
   return p;
 }
 const bankWord = t => t.source === 'manual' ? (t.expectMatch ? 'Card' : 'Cash') : t.pending ? 'Pending' : 'Posted';

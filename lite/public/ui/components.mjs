@@ -110,7 +110,7 @@ export const banner = (title, text, { tone = 'warn', act, data, icon } = {}) => 
   const tag = act ? 'button' : 'div';
   return `<${tag}${act ? ` type="button" data-act="${esc(act)}"` : ''}${attrs(data)} class="banner banner-${tone}">${line(icon || (tone === 'warn' ? 'alert' : 'info'), { size: 22 })}<span class="grow"><b>${esc(title)}</b>${text ? `<small>${esc(text)}</small>` : ''}</span>${act ? line('chevronRight', { size: 18 }) : ''}</${tag}>`;
 };
-export const note = (text, { tone = 'info' } = {}) => `<p class="note note-${tone}">${line(tone === 'warn' ? 'alert' : 'info', { size: 18 })}<span>${esc(text)}</span></p>`;
+export const note = (text, { tone = 'info', icon } = {}) => `<p class="note note-${tone}">${line(icon || (tone === 'warn' ? 'alert' : 'info'), { size: 18 })}<span>${esc(text)}</span></p>`;
 
 // ---- empty state
 export const emptyState = ({ icon = 'empty', title, text, action }) => card(`${iconTile(icon, { size: 'lg' })}<b class="empty-title">${esc(title)}</b>${text ? `<p class="empty-text">${esc(text)}</p>` : ''}${action || ''}`, { cls: 'empty' });
