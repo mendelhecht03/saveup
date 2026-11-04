@@ -11,6 +11,7 @@ import { BANK_NAME, publicTokenRequest } from './sandbox/banks.mjs';
 import { sqliteStore } from './db.mjs';
 import { claudeSuggester, addAiSuggestions } from './ai.mjs';
 import { claudeReceiptReader } from './receipts/reader.mjs';
+import { veryfiReceiptReader } from './receipts/veryfi.mjs';
 import { RECEIPTS } from './sandbox/receipts.mjs';
 
 const publicRoot = fileURLToPath(new URL('./public/', import.meta.url));
@@ -23,7 +24,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 // Never send access tokens or sync cursors to the browser.
 const publicState = s => ({ ...s, items: s.items.map(({ id, name, lastSync, error }) => ({ id, name, lastSync, error })) });
 
-export async function createApp({ client, store, categorize = null, readReceipt = null, receiptDir = null, publicHosts = [], csrf = randomBytes(24).toString('hex'), pollDelay = 2500 }) {
+export async function createApp({ client, store, categorize = null, readReceipt = null, readerName = '', receiptDir = null, publicHosts = [], csrf = randomBytes(24).toString('hex'), pollDelay = 2500 }) {
   const state = await store.load();
   let queue = Promise.resolve();
   const mutate = task => { const run = queue.then(task); queue = run.catch(() => {}); return run; };
@@ -154,7 +155,7 @@ export async function createApp({ client, store, categorize = null, readReceipt 
       if (!local.includes(req.headers.host) && !publicHosts.includes(req.headers.host)) throw new L.InputError('Use the local address.', 403);
       if (req.headers.origin && !origins.includes(req.headers.origin)) throw new L.InputError('Cross-origin requests are blocked.', 403);
       const url = new URL(req.url, 'http://local');
-      if (req.method === 'GET' && url.pathname === '/api/state') return send(200, { state: publicState(state), csrf, configured: client.configured, ai: Boolean(categorize), reader: Boolean(readReceipt),
+      if (req.method === 'GET' && url.pathname === '/api/state') return send(200, { state: publicState(state), csrf, configured: client.configured, ai: Boolean(categorize), reader: Boolean(readReceipt), readerName,
         samples: RECEIPTS.map(r => ({ id: r.id, merchant: r.merchant, totalCents: r.totalCents })) });
       if (req.method === 'GET' && url.pathname === '/api/receipt/image') {
         const r = L.findReceipt(state, url.searchParams.get('id'));
@@ -231,6 +232,16 @@ export async function createApp({ client, store, categorize = null, readReceipt 
   return { server, state, refreshStale };
 }
 
+// Which service reads receipt photos. SAVEUP_RECEIPT_READER=veryfi or claude picks one;
+// otherwise Veryfi when its keys are set, else Claude.
+export function pickReceiptReader(env) {
+  const veryfi = veryfiReceiptReader({ clientId: env.VERYFI_CLIENT_ID, apiKey: env.VERYFI_API_KEY, username: env.VERYFI_USERNAME || undefined });
+  const claude = claudeReceiptReader({ apiKey: env.ANTHROPIC_API_KEY, model: env.SAVEUP_RECEIPT_MODEL || undefined });
+  const want = String(env.SAVEUP_RECEIPT_READER || '').toLowerCase();
+  const chosen = want === 'claude' ? ['Claude', claude] : want === 'veryfi' ? ['Veryfi', veryfi] : veryfi ? ['Veryfi', veryfi] : ['Claude', claude];
+  return chosen[1] ? { readReceipt: chosen[1].read, readerName: chosen[0] } : { readReceipt: null, readerName: '' };
+}
+
 async function start() {
   try { loadEnvFile(fileURLToPath(new URL('./.env.local', import.meta.url))); } catch { /* keys optional until connecting */ }
   if ((process.env.PLAID_ENV || 'sandbox') !== 'sandbox') throw new Error('SaveUp Lite only runs against Plaid Sandbox.');
@@ -240,7 +251,7 @@ async function start() {
   const port = Number(process.env.LITE_PORT || 4193);
   const app = await createApp({ client: plaidClient({ clientId: process.env.PLAID_CLIENT_ID, secret: process.env.PLAID_SECRET }), store: sqliteStore(dbFile, { legacyFile }),
     categorize: claudeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.SAVEUP_AI_MODEL || undefined }),
-    readReceipt: claudeReceiptReader({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.SAVEUP_RECEIPT_MODEL || undefined })?.read || null,
+    ...pickReceiptReader(process.env),
     receiptDir: path.join(dataDir, 'receipts'),
     publicHosts: String(process.env.SAVEUP_PUBLIC_HOST || '').split(',').map(h => h.trim().toLowerCase()).filter(h => /^[a-z0-9-]+(\.[a-z0-9-]+)*\.ts\.net$/.test(h)) });
   app.server.listen(port, '127.0.0.1', () => console.log(`SaveUp Lite (Plaid Sandbox) at http://127.0.0.1:${port}`));
