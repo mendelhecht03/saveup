@@ -27,7 +27,14 @@ One design system, no framework or build step. `public/ui/tokens.css` defines ev
 
 ## Test bank
 
-With the app running, `npm run seed` adds the **SaveUp Test Bank**: a Plaid custom Sandbox user with checking, savings and a credit card, and about 50 transactions dated relative to today. It covers repeat purchases (Kahan's $2.53), pending charges, refunds, Zelle/PayPal/Venmo and own-account transfers, subscriptions, an ATM withdrawal, payroll and charges that match the sample receipts. `npm run seed -- --fresh` removes earlier test banks first (banks added through Link stay). The scenarios live in `lite/sandbox/banks.mjs` and the receipts in `lite/sandbox/receipts.mjs`.
+The **SaveUp Test Bank** is a Plaid Sandbox custom user with checking, savings and a credit card and about 50 transactions written to test SaveUp's edge cases: repeat purchases (Kahan's $2.53), pending charges, refunds, Zelle/PayPal/Venmo and own-account transfers, subscriptions, an ATM withdrawal, payroll and charges that match the sample receipts. The scenarios live in `lite/sandbox/banks.mjs` and the receipts in `lite/sandbox/receipts.mjs`.
+
+It is connected the same way a real bank would be, through the Plaid Link window:
+1. `npm run seed:export` writes the bank to `qa/plaid-sandbox-user.json` (ignored by Git).
+2. In the Plaid Dashboard, open Build > Sandbox (Sandbox Studio) > Users, create the user `saveup_test`, and paste the file as its JSON configuration. `roll_dates_forward` moves the dates to the day you connect, so this is a one-time step.
+3. In SaveUp: More > Accounts > Connect a bank with Plaid, pick First Platypus Bank (custom users need a non-OAuth bank) and log in as `saveup_test` with any password.
+
+For automated checks only, `npm run seed [-- --fresh]` still loads the same bank without the Link window.
 
 ## Included
 
@@ -41,7 +48,7 @@ With the app running, `npm run seed` adds the **SaveUp Test Bank**: a Plaid cust
 - **Weekly review:** when a week is all reviewed, the inbox shows the review ring, any older purchases still waiting, and a budget overview with true percentages.
 - **What if it costs…:** on a planned purchase, slide the price to see what it leaves in its budget. Budget room only, with a reminder that it isn't a cash check.
 - **Preview screens** (drawn with sample data, clearly labelled, not connected yet): Subscriptions, IOUs, Cash withdrawals and Returns under More, Goals under Planned, and Settings.
-- **History:** search across all transactions. **Banks:** Plaid Link, an instant test bank, remove, manual sync, pull-to-refresh, and a stale-item sync every few hours.
+- **History:** search across all transactions. **Banks:** connected only through Plaid Link (as a real bank would be), remove, manual sync, pull-to-refresh, and a stale-item sync every few hours.
 - **Test lab:** sends custom charges through `/sandbox/transactions/create`. Only works for the `user_transactions_dynamic` test user, and Plaid rate-limits it.
 
 ## Deliberately skipped

@@ -154,7 +154,6 @@ document.addEventListener('click', e => {
     'delete-category': () => confirm('Delete this budget? Its bank purchases go back to the inbox.') && shut(() => act(() => api('/api/category/delete', { id }), { done: 'Budget deleted' })),
     'remove-item': () => confirm('Remove this bank and its transactions?') && act(() => api('/api/items/remove', { itemId: id }), { done: 'Bank removed' }),
     sync: () => act(() => api('/api/sync', {}), { wait: 'Syncing with Plaid…', done: 'Up to date' }),
-    instant: () => act(() => api('/api/sandbox/instant', {}), { wait: 'Creating a test bank and loading purchases…', done: 'Test bank connected' }),
     link: () => openLink(),
     preset: () => { const f = $('form[data-form="charge"]'); f.description.value = el.dataset.d; f.amount.value = (Math.abs(el.dataset.a) / 100).toFixed(2); f.querySelector(`[name="dir"][value="${el.dataset.a < 0 ? 'in' : 'out'}"]`).checked = true; }
   };

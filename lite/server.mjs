@@ -63,11 +63,6 @@ export async function createApp({ client, store, categorize = null, readReceipt 
       if (typeof b.publicToken !== 'string' || !b.publicToken.startsWith('public-sandbox-')) throw new L.InputError('A Sandbox public token is required.');
       await addItem(b.publicToken, b.institution);
     },
-    // Skips the Link screens. The "dynamic" test user is the one Plaid lets us add custom charges to.
-    '/api/sandbox/instant': async () => {
-      const r = await client.call('/sandbox/public_token/create', { institution_id: 'ins_109508', initial_products: ['transactions'], options: { override_username: 'user_transactions_dynamic', override_password: 'pass_good' } });
-      await addItem(r.public_token, 'First Platypus Bank (test)');
-    },
     // The SaveUp Test Bank: a custom Sandbox user with every edge case (see sandbox/banks.mjs).
     // fresh: true removes earlier test banks first; banks added through Link stay.
     '/api/sandbox/seed': async b => {
