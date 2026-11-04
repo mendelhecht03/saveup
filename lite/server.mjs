@@ -1,37 +1,24 @@
 import http from 'node:http';
 import path from 'node:path';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { homedir } from 'node:os';
 import { loadEnvFile } from 'node:process';
 import * as L from './public/logic.mjs';
 import { plaidClient, collectUpdates } from './plaid.mjs';
 import { BANK_NAME, publicTokenRequest } from './sandbox/banks.mjs';
+import { sqliteStore } from './db.mjs';
+import { claudeSuggester, addAiSuggestions } from './ai.mjs';
 
 const publicRoot = fileURLToPath(new URL('./public/', import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.ttf': 'font/ttf' };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
-// Plain JSON file outside the repo and OneDrive. Writes go to a temp file first
-// so a crash mid-write cannot corrupt the saved data.
-export function fileStore(file) {
-  return {
-    async load() {
-      try { return JSON.parse(await readFile(file, 'utf8')); } catch (e) { if (e.code === 'ENOENT') return L.newState(); throw e; }
-    },
-    async save(state) {
-      await mkdir(path.dirname(file), { recursive: true });
-      await writeFile(`${file}.tmp`, JSON.stringify(state));
-      await rename(`${file}.tmp`, file);
-    }
-  };
-}
-
 // Never send access tokens or sync cursors to the browser.
 const publicState = s => ({ ...s, items: s.items.map(({ id, name, lastSync, error }) => ({ id, name, lastSync, error })) });
 
-export async function createApp({ client, store, csrf = randomBytes(24).toString('hex'), pollDelay = 2500 }) {
+export async function createApp({ client, store, categorize = null, csrf = randomBytes(24).toString('hex'), pollDelay = 2500 }) {
   const state = await store.load();
   let queue = Promise.resolve();
   const mutate = task => { const run = queue.then(task); queue = run.catch(() => {}); return run; };
@@ -44,9 +31,14 @@ export async function createApp({ client, store, csrf = randomBytes(24).toString
         const batch = await collectUpdates(client.call, item.token, item.cursor);
         L.applySync(state, item.id, batch);
         Object.assign(item, { cursor: batch.cursor, lastSync: new Date().toISOString(), error: null });
+        await suggestNew();
         if (!untilFound || untilFound(batch)) return;
       } catch (error) { item.error = error.message; throw error; }
     }
+  }
+  // AI suggestions are a bonus: if the API is down or there is no key, sync still works.
+  async function suggestNew() {
+    try { await addAiSuggestions(state, categorize); } catch (e) { console.warn(`AI suggestions skipped: ${e.message}`); }
   }
   async function addItem(publicToken, name) {
     const ex = await client.call('/item/public_token/exchange', { public_token: publicToken });
@@ -107,6 +99,7 @@ export async function createApp({ client, store, csrf = randomBytes(24).toString
       L.removeItem(state, item.id);
     },
     '/api/txn/confirm': b => { L.confirmTxn(state, b); },
+    '/api/ai/suggest': async () => { if (!categorize) throw new L.InputError('Add ANTHROPIC_API_KEY to lite/.env.local to turn on AI suggestions.'); await addAiSuggestions(state, categorize); },
     '/api/txn/unreview': b => { L.unreviewTxn(state, b); },
     '/api/txn/manual': b => { L.addManual(state, b, randomUUID()); },
     '/api/txn/delete': b => { L.deleteTxn(state, b); },
@@ -127,7 +120,7 @@ export async function createApp({ client, store, csrf = randomBytes(24).toString
       if (!local.includes(req.headers.host)) throw new L.InputError('Use the local address.', 403);
       if (req.headers.origin && !local.some(h => req.headers.origin === `http://${h}`)) throw new L.InputError('Cross-origin requests are blocked.', 403);
       const url = new URL(req.url, 'http://local');
-      if (req.method === 'GET' && url.pathname === '/api/state') return send(200, { state: publicState(state), csrf, configured: client.configured });
+      if (req.method === 'GET' && url.pathname === '/api/state') return send(200, { state: publicState(state), csrf, configured: client.configured, ai: Boolean(categorize) });
       if (req.method === 'POST' && routes[url.pathname]) {
         const supplied = Buffer.from(String(req.headers['x-saveup-csrf'] || ''));
         if (supplied.length !== csrf.length || !timingSafeEqual(supplied, Buffer.from(csrf))) throw new L.InputError('Reload the app and try again.', 403);
@@ -168,9 +161,12 @@ export async function createApp({ client, store, csrf = randomBytes(24).toString
 async function start() {
   try { loadEnvFile(fileURLToPath(new URL('./.env.local', import.meta.url))); } catch { /* keys optional until connecting */ }
   if ((process.env.PLAID_ENV || 'sandbox') !== 'sandbox') throw new Error('SaveUp Lite only runs against Plaid Sandbox.');
-  const dataFile = process.env.SAVEUP_LITE_DATA || path.join(process.env.LOCALAPPDATA || path.join(homedir(), '.local', 'share'), 'SaveUp', 'lite-sandbox', 'state.json');
+  const dataDir = path.join(process.env.LOCALAPPDATA || path.join(homedir(), '.local', 'share'), 'SaveUp', 'lite-sandbox');
+  const dbFile = process.env.SAVEUP_LITE_DB || path.join(dataDir, 'saveup.sqlite');
+  const legacyFile = process.env.SAVEUP_LITE_DATA || path.join(dataDir, 'state.json');
   const port = Number(process.env.LITE_PORT || 4193);
-  const app = await createApp({ client: plaidClient({ clientId: process.env.PLAID_CLIENT_ID, secret: process.env.PLAID_SECRET }), store: fileStore(dataFile) });
+  const app = await createApp({ client: plaidClient({ clientId: process.env.PLAID_CLIENT_ID, secret: process.env.PLAID_SECRET }), store: sqliteStore(dbFile, { legacyFile }),
+    categorize: claudeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.SAVEUP_AI_MODEL || undefined }) });
   app.server.listen(port, '127.0.0.1', () => console.log(`SaveUp Lite (Plaid Sandbox) at http://127.0.0.1:${port}`));
   app.refreshStale();
   setInterval(app.refreshStale, 3 * 3600e3).unref();

@@ -4,16 +4,27 @@ A cheap, minimal end-to-end version of SaveUp built from the Obsidian notes, so 
 
 ## Run
 
-1. Put Sandbox keys in `lite/.env.local` (ignored by Git): `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV=sandbox`.
+1. Put Sandbox keys in `lite/.env.local` (ignored by Git): `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV=sandbox`. Optional: `ANTHROPIC_API_KEY` turns on AI budget suggestions (`SAVEUP_AI_MODEL` picks the model, default `claude-opus-5-5`).
 2. `npm start` serves http://127.0.0.1:4193 (loopback only).
 3. `npm run phone` prints a private HTTPS link that expires after 8 hours. It needs `cloudflared` at `%LOCALAPPDATA%\SaveUp\tools\cloudflared.exe` or at `CLOUDFLARED_PATH`. Never commit the link.
 4. `npm run check` runs syntax checks and ledger tests.
 
-Data is a JSON file at `%LOCALAPPDATA%\SaveUp\lite-sandbox\state.json` (override with `SAVEUP_LITE_DATA`). Access tokens are stored there and are never sent to the browser.
+Data is a SQLite database (`node:sqlite`, built into Node 24) at `%LOCALAPPDATA%\SaveUp\lite-sandbox\saveup.sqlite` (override with `SAVEUP_LITE_DB`). The first time it runs, it copies in the old `state.json` from the same folder (or `SAVEUP_LITE_DATA`) and leaves that file alone. Access tokens are stored there and are never sent to the browser. Node prints an "experimental" warning for SQLite; it is safe here.
+
+The rules shared by the server and the browser live in `public/logic/` (one file per topic: dates, transfers, suggestions, budgets, review, plans, sync), gathered by `public/logic.mjs`. `db.mjs` is storage and `ai.mjs` asks Claude for suggestions.
+
+## Interface
+
+One design system, no framework or build step. `public/ui/tokens.css` defines every color, type size, radius, shadow, spacing and motion value. `public/ui/components.mjs` and `components.css` hold the reusable pieces (cards, buttons, pills, chips, budget bar, list rows, sheets, nav, fields, empty states, toasts). `public/screens/*.mjs` build each screen only from those pieces, as plain functions of the data. Line icons are only for controls; content uses 3D icons (`ui/icons.mjs`, emoji placeholders until the real images exist). More › Design system shows every component.
+
+## Test bank
+
+With the app running, `npm run seed` adds the **SaveUp Test Bank**: a Plaid custom Sandbox user with checking, savings and a credit card, and about 50 transactions dated relative to today. It covers repeat purchases (Kahan's $2.53), pending charges, refunds, Zelle/PayPal/Venmo and own-account transfers, subscriptions, an ATM withdrawal, payroll and charges that match the sample receipts. `npm run seed -- --fresh` removes earlier test banks first (banks added through Link stay). The scenarios live in `lite/sandbox/banks.mjs` and the receipts in `lite/sandbox/receipts.mjs`.
 
 ## Included
 
-- **Inbox:** the weekly (Sun–Sat) review bucket. Confirming is always deliberate. Suggestions come from previously confirmed merchant and amount pairs.
+- **Inbox:** the weekly (Sun–Sat) review bucket. Confirming is always deliberate: swipe right to confirm a suggestion, swipe left to scan the receipt, or tap to review. Suggestions come first from your own past choices for that merchant and amount, then from Claude (if `ANTHROPIC_API_KEY` is set), which reads the merchant, amount, Plaid's category and your budget descriptions. A suggestion is an outlined chip with a sparkle; a reviewed purchase shows a solid chip with a check. The guess is stored separately from the final category.
+- **Essential** is a priority tag (the top stop of the priority slider), not a budget. An old *Essentials* budget becomes *Household*.
 - **Transfers:** Zelle, PayPal and similar transfers count as nothing until marked Income, Spending or own-account.
 - **Budgets:** presets plus custom ones (description required), each weekly, monthly or yearly. Shows the true % over 100. Pending money appears as a striped bar segment. Cards expand to show their purchases.
 - **Hand-logged purchases:** card purchases stay unverified until a bank charge with the exact amount arrives within 7 days, then they merge once. Cash purchases count immediately.
@@ -23,4 +34,4 @@ Data is a JSON file at `%LOCALAPPDATA%\SaveUp\lite-sandbox\state.json` (override
 
 ## Deliberately skipped
 
-Receipt OCR, IOUs/splits, subscriptions, AI assistant/MCP, email receipts, returns, price tracking, visualizations, haptics, Production banks, sign-in/multi-user.
+Receipt scanning (milestone 5), IOUs/splits, subscriptions, AI assistant/MCP, email receipts, returns, price tracking, visualizations, haptics, Production banks, sign-in/multi-user.

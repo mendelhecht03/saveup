@@ -9,7 +9,7 @@ const ago = iso => {
   return `Updated ${m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`}`;
 };
 
-export function moreScreen({ S }) {
+export function moreScreen({ S, ai }) {
   const banks = S.items.map(i => row({ icon: 'bank', title: i.name, sub: i.error ? 'Connection needs attention' : ago(i.lastSync), pillList: i.error ? [statusPill('Needs attention', 'danger')] : [], act: 'go', data: { id: i.id, to: 'more/accounts' } }));
   const menu = [
     ['History', 'Search every purchase', 'receipt', 'more/history'],
@@ -19,6 +19,8 @@ export function moreScreen({ S }) {
   return `${pageHeader({ title: 'More' })}
     ${listSection({ title: 'Accounts', action: button('Manage', { variant: 'secondary', size: 'sm', act: 'go', data: { to: 'more/accounts' } }), rows: banks.length ? banks : [row({ icon: 'bank', title: 'Connect a bank', sub: 'Secure connection through Plaid', act: 'go', data: { to: 'more/accounts' } })] })}
     ${listSection({ rows: menu })}
+    ${listSection({ rows: [row({ icon: 'other', title: 'AI suggestions', sub: ai ? 'Suggests a budget for new purchases. You still confirm each one.' : 'Off. Add ANTHROPIC_API_KEY to lite/.env.local and restart.',
+      pillList: [ai ? statusPill('On', 'ok') : statusPill('Off', 'info')], chevron: Boolean(ai), act: ai ? 'ai-suggest' : null, tag: ai ? 'button' : 'div' })] })}
     ${note('Plaid Sandbox only: fictional banks, no real money.', { tone: 'plain' })}`;
 }
 

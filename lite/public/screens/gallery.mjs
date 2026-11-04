@@ -1,4 +1,5 @@
 // Every component with sample data, so the design system can be checked in one place.
+import * as L from '../logic.mjs';
 import * as C from '../ui/components.mjs';
 import { ART_KEYS, line } from '../ui/icons.mjs';
 
@@ -25,7 +26,7 @@ export function galleryScreen() {
     ${C.segmented('g-paid', [['cash', 'Cash'], ['card', 'Card']], { value: 'cash', legend: 'Paid with' })}
     ${C.selectField('g-repeat', 'Repeats', [['w', 'Every week'], ['m', 'Every month']])}
     ${C.choiceList('g-cat', [{ value: 'pc', label: 'Personal Care', sub: 'Toiletries, hygiene, self-care', icon: 'personal-care' }, { value: 'gr', label: 'Groceries', sub: 'Food and household items', icon: 'groceries' }], { value: 'pc', legend: 'Which budget?' })}
-    ${C.stepSlider('g-priority', 'Priority', ['Low', 'Normal', 'High', 'Essential'], { value: 2, optional: true })}
+    ${C.stepSlider('g-priority', 'Priority', L.PRIORITIES, { value: 2, optional: true })}
     ${C.checkbox('g-learn', 'Use this category as a future suggestion', { checked: true, hint: 'You can change suggestions anytime.' })}
     ${C.textArea('g-note', 'Description', { value: 'Food and drinks for home', counter: true, max: 100, optional: true })}</div>`))}
   ${section('Empty state', C.emptyState({ icon: 'inbox-done', title: 'Everything here is reviewed', text: '5 older purchases are still waiting.', action: C.button('Review older purchases', { variant: 'secondary' }) }))}

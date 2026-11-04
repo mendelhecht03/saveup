@@ -4,7 +4,7 @@ import { iconTile, button, choiceList, textField, moneyField, textArea, selectFi
 import { ART } from '../ui/icons.mjs';
 import { txnIcon, statusPills, signed, longDate, accountLabel, catArt } from './shared.mjs';
 
-export const PRIORITY_STOPS = ['Low', 'Normal', 'High', 'Essential'];
+export const PRIORITY_STOPS = L.PRIORITIES;
 
 function categoryChoices(S, selected, suggestedId) {
   // The suggested or chosen budget goes first so it's within thumb reach.
@@ -28,7 +28,9 @@ export function reviewSheet(S, t) {
       <b class="review-amount ${t.amountCents < 0 ? 'amount-in' : ''}">${signed(t)}</b></div>
     ${t.amountChanged ? note('The final amount changed, so this needs another look.', { tone: 'warn' }) : ''}
     ${t.matchedFrom ? note(`Linked to “${t.matchedFrom}”, which you logged by hand. Counts once.`) : ''}
-    ${sug ? note(`Suggested from ${sug.exact ? 'an identical past purchase' : 'past purchases here'}. Nothing is confirmed until you tap Confirm.`) : ''}
+    ${sug ? note(sug.source === 'ai'
+      ? `AI suggestion${sug.reason ? `: ${sug.reason.replace(/\.?$/, '.')}` : '.'} Nothing is confirmed until you tap Confirm.`
+      : `Suggested from ${sug.exact ? 'an identical past purchase' : 'past purchases here'}. Nothing is confirmed until you tap Confirm.`, { icon: 'sparkle' }) : ''}
     ${transfer}
     <div class="cats" ${t.transfer && kind !== 'spending' ? 'hidden' : ''}>${choiceList('cat', categoryChoices(S, selected, sug?.categoryId), { value: selected, legend: 'Which budget?', hint: t.transfer ? '' : 'The store name and amount don’t tell us what you bought.' })}</div>
     <div class="stack"><b class="section-label">Optional details</b>

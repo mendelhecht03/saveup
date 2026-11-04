@@ -86,7 +86,7 @@ test('cash purchases count immediately; deleting a budget returns bank items to 
 test('plans need a sensible range and show against their budget', () => {
   const s = L.newState();
   assert.throws(() => L.savePlan(s, { name: 'Coat', lowCents: 15000, highCents: 10000 }, 'p'), /high estimate/);
-  L.savePlan(s, { name: 'Coat', lowCents: 10000, highCents: 15000, categoryId: 'preset-0', essential: true }, 'p');
-  const b = L.budgetSummary(s, '2026-11-04').find(c => c.id === 'preset-0');
+  L.savePlan(s, { name: 'Coat', lowCents: 10000, highCents: 15000, categoryId: 'preset-1', essential: true }, 'p');
+  const b = L.budgetSummary(s, '2026-11-04').find(c => c.id === 'preset-1');
   assert.deepEqual([b.plannedLow, b.plannedHigh], [10000, 15000]);
 });

@@ -12,7 +12,7 @@ import { galleryScreen } from './screens/gallery.mjs';
 import { reviewSheet, manualSheet, categorySheet, planSheet, scanSheet, iconEmoji, PRIORITY_STOPS } from './screens/sheets.mjs';
 import { byDate } from './screens/shared.mjs';
 
-let S = null, csrf = '', configured = true, busy = '', sheet = null, toastTimer = 0;
+let S = null, csrf = '', configured = true, ai = false, busy = '', sheet = null, toastTimer = 0;
 const ui = { weekOffset: 0, showAll: false, openBudgets: new Set(), editPlans: false, search: '' };
 const $ = s => document.querySelector(s);
 const toCents = v => { const n = Number(String(v).replace(/[$,\s]/g, '')); return Number.isFinite(n) && String(v).trim() ? Math.round(n * 100) : NaN; };
@@ -55,7 +55,7 @@ function render({ enter = false, firstBars = false } = {}) {
   const prev = capture();
   const r = route(), tab = r.split('/')[0];
   const focused = document.activeElement?.id === 'search';
-  $('#screen-root').innerHTML = `<main class="screen${enter ? ' screen-enter' : ''}">${ROUTES[r]({ S, ui, today: L.todayISO(), configured })}</main>`;
+  $('#screen-root').innerHTML = `<main class="screen${enter ? ' screen-enter' : ''}">${ROUTES[r]({ S, ui, today: L.todayISO(), configured, ai })}</main>`;
   $('#nav-root').innerHTML = bottomNav(tab, { badge: weekBadge() });
   if (focused) { const s = $('#search'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
   play(prev, document, { firstBars: firstBars || enter });
@@ -113,6 +113,7 @@ document.addEventListener('click', e => {
     open: () => openSheet({ type: 'txn', id }),
     manual: () => openSheet({ type: 'manual' }),
     scan: () => openSheet({ type: 'scan' }),
+    'ai-suggest': () => act(() => api('/api/ai/suggest', {}), { wait: 'Asking for suggestions…', done: 'Suggestions updated' }),
     category: () => openSheet({ type: 'category', id }),
     plan: () => openSheet({ type: 'plan', id }),
     close: () => shut(),
@@ -195,5 +196,5 @@ enablePullToRefresh($('#ptr'), {
 
 $('#app').innerHTML = '<div id="screen-root"></div><div id="nav-root"></div>';
 $('#overlay').innerHTML = '<div id="sheet-root"></div><div id="busy-root"></div><div id="toast-root"></div>';
-api('/api/state').then(d => { configured = d.configured; render({ firstBars: true, enter: true }); })
+api('/api/state').then(d => { configured = d.configured; ai = d.ai; render({ firstBars: true, enter: true }); })
   .catch(e => { $('#screen-root').innerHTML = `<p class="muted">${esc(e.message)}</p>`; });
