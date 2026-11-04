@@ -56,19 +56,24 @@ test('pending to posted keeps the review, and a changed amount reopens it withou
   assert.deepEqual([s2.txns.length, s2.txns[0].reviewed, s2.txns[0].amountChanged, s2.txns[0].note], [1, false, true, 'tip']);
 });
 
-test('a hand-logged card purchase is pending until the exact bank charge arrives, then merges once', () => {
+test('a hand-logged card purchase stays pending until you link its bank charge, then counts once', () => {
   const s = L.newState();
   L.addManual(s, { merchant: 'Target', amountCents: 1299, date: '2026-11-02', categoryId: groceries, note: 'shampoo', expectMatch: true }, 'm1');
   let b = L.budgetSummary(s, '2026-11-04').find(c => c.id === groceries);
   assert.deepEqual([b.spent, b.pending], [0, 1299]);
-  L.applySync(s, 'item1', { added: [plaidTxn('x', 12.98, { name: 'Target' })] });
-  assert.equal(s.txns.length, 2, 'a different amount does not match');
   L.applySync(s, 'item1', { added: [plaidTxn('t1', 12.99, { name: 'TARGET 00123' })] });
-  assert.equal(s.txns.length, 2);
-  const merged = s.txns.find(t => t.id === 't1');
-  assert.deepEqual([merged.reviewed, merged.categoryId, merged.note, merged.matchedFrom], [true, groceries, 'shampoo', 'Target']);
+  assert.equal(s.txns.length, 2, 'nothing links on its own');
+  b = L.budgetSummary(s, '2026-11-04').find(c => c.id === groceries);
+  assert.deepEqual([b.spent, b.pending], [0, 1299], 'the unreviewed bank charge does not count, so nothing is counted twice');
+  const [match] = L.openMatches(s);
+  assert.deepEqual([match.bank.id, match.manual.id, match.differenceCents], ['t1', 'm1', 0]);
+  L.linkPurchase(s, { bankId: 't1', manualId: 'm1' });
+  assert.equal(s.txns.length, 1);
+  const linked = s.txns[0];
+  assert.deepEqual([linked.reviewed, linked.categoryId, linked.note, linked.matchedFrom], [true, groceries, 'shampoo', 'Target']);
   b = L.budgetSummary(s, '2026-11-04').find(c => c.id === groceries);
   assert.deepEqual([b.spent, b.pending], [1299, 0]);
+  assert.equal(L.openMatches(s).length, 0);
 });
 
 test('cash purchases count immediately; deleting a budget returns bank items to the inbox', () => {

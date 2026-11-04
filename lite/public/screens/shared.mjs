@@ -47,6 +47,7 @@ export function statusPills(t) {
   if (t.matchedFrom) p.push(statusPill('Matched', 'ok', { icon: 'link' }));
   if (t.amountChanged) p.push(statusPill('Amount changed', 'warn'));
   if (t.priority === L.ESSENTIAL) p.push(statusPill('Essential', 'ok'));
+  if (t.receiptId) p.push(statusPill(t.splits?.length > 1 ? `Receipt · ${t.splits.length} splits` : 'Receipt', 'blue', { icon: 'file' }));
   return p;
 }
 const bankWord = t => t.source === 'manual' ? (t.expectMatch ? 'Card' : 'Cash') : t.pending ? 'Pending' : 'Posted';
@@ -61,7 +62,9 @@ export function txnRow(S, t, { queue = false } = {}) {
   if (!queue) {
     // Once reviewed, the budget shows as a solid chip with a check: the final label.
     const done = t.reviewed && (c ? catChip(c, { confirmed: true }) : t.transferKind === 'own' ? categoryChip('My accounts', 'gray', { confirmed: true }) : t.transferKind === 'income' ? categoryChip('Income', 'green', { confirmed: true }) : '');
-    return row({ icon, emoji, title: t.name, sub: `${shortDate(t.date)} · ${accountLabel(S, t)}`, chip: done || null, amount: signed(t), amountTone: t.amountCents < 0 ? 'in' : null, pillList: statusPills(t), act: 'open', data });
+    // In a budget's list a split purchase shows only that budget's share.
+    const share = t.shareCents != null && t.shareCents !== t.amountCents;
+    return row({ icon, emoji, title: t.name, sub: `${shortDate(t.date)} · ${share ? `part of ${signed(t)}` : accountLabel(S, t)}`, chip: done || null, amount: share ? money(t.shareCents) : signed(t), amountTone: t.amountCents < 0 ? 'in' : null, pillList: statusPills(t), act: 'open', data });
   }
   let chip;
   if (t.transfer && !sug) chip = statusPill('Needs purpose', 'warn');

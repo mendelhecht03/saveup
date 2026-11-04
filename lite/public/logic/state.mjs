@@ -20,7 +20,7 @@ const PRESETS = [
 
 export function newState() {
   return {
-    version: 2, items: [], accounts: {}, txns: [], plans: [], rules: {},
+    version: 3, items: [], accounts: {}, txns: [], plans: [], rules: {}, receipts: [], itemNames: {},
     categories: PRESETS.map(([emoji, name, description, limitCents, interval], i) => ({ id: `preset-${i + 1}`, emoji, name, description, limitCents, interval }))
   };
 }
@@ -30,6 +30,8 @@ export function upgradeState(state) {
   const old = state.categories.find(c => c.id === 'preset-0' && c.name === 'Essentials');
   if (old) Object.assign(old, { emoji: '🧽', name: 'Household', description: 'Cleaning supplies, toiletries and home basics' });
   for (const t of state.txns) if (t.priority > ESSENTIAL) t.priority = ESSENTIAL;
-  state.version = 2;
+  state.receipts ||= [];
+  state.itemNames ||= {};
+  state.version = 3;
   return state;
 }

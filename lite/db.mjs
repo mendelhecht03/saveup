@@ -18,8 +18,12 @@ const TABLES = {
     ['transfer', 'transfer', 'bool'], ['transferKind', 'transfer_kind'], ['categoryId', 'category_id'],
     ['note', 'note'], ['priority', 'priority'], ['reviewed', 'reviewed', 'bool'], ['amountChanged', 'amount_changed', 'bool'],
     ['expectMatch', 'expect_match', 'bool'], ['verified', 'verified', 'bool'], ['matchedFrom', 'matched_from'],
-    ['ai', 'ai_suggestion', 'json'], ['suggestionTaken', 'suggestion_taken']
+    ['ai', 'ai_suggestion', 'json'], ['suggestionTaken', 'suggestion_taken'],
+    ['splits', 'splits', 'json'], ['receiptId', 'receipt_id'], ['notMatch', 'not_match', 'json']
   ],
+  // A receipt's lines and photo details are small and always read together, so they're one JSON column.
+  receipts: [['id', 'id'], ['txnId', 'txn_id'], ['data', 'data', 'json']],
+  itemNames: [['key', 'key'], ['name', 'name']],
   plans: [['id', 'id'], ['name', 'name'], ['lowCents', 'low_cents'], ['highCents', 'high_cents'], ['categoryId', 'category_id'], ['essential', 'essential', 'bool']],
   rules: [['key', 'key'], ['categoryId', 'category_id'], ['transferKind', 'transfer_kind']]
 };
@@ -35,7 +39,10 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS txns_date ON txns (date);
   CREATE TABLE IF NOT EXISTS plans (id TEXT PRIMARY KEY, name TEXT, low_cents INTEGER, high_cents INTEGER, category_id TEXT, essential INTEGER);
   CREATE TABLE IF NOT EXISTS rules (key TEXT PRIMARY KEY, category_id TEXT, transfer_kind TEXT);
+  CREATE TABLE IF NOT EXISTS receipts (id TEXT PRIMARY KEY, txn_id TEXT, data TEXT);
+  CREATE TABLE IF NOT EXISTS item_names (key TEXT PRIMARY KEY, name TEXT);
 `;
+const SQL_TABLE = { itemNames: 'item_names' };
 
 const toRow = (obj, cols) => cols.map(([f, , kind]) => {
   const v = obj[f];
@@ -59,20 +66,29 @@ export function sqliteStore(file, { legacyFile } = {}) {
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
-  const all = name => db.prepare(`SELECT * FROM ${name}`).all().map(r => fromRow(r, TABLES[name]));
+  // Columns added in later versions are added to an existing database here.
+  for (const [name, cols] of Object.entries(TABLES)) {
+    const table = SQL_TABLE[name] || name;
+    const have = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name));
+    for (const [, col] of cols) if (!have.has(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col}`);
+  }
+  const all = name => db.prepare(`SELECT * FROM ${SQL_TABLE[name] || name}`).all().map(r => fromRow(r, TABLES[name]));
 
   function save(state) {
     const rows = {
       items: state.items,
       accounts: Object.entries(state.accounts).map(([id, a]) => ({ id, ...a })),
       categories: state.categories, txns: state.txns, plans: state.plans,
-      rules: Object.entries(state.rules).map(([key, r]) => ({ key, ...r }))
+      rules: Object.entries(state.rules).map(([key, r]) => ({ key, ...r })),
+      receipts: state.receipts.map(({ id, txnId, ...data }) => ({ id, txnId, data })),
+      itemNames: Object.entries(state.itemNames).map(([key, name]) => ({ key, name }))
     };
     db.exec('BEGIN');
     try {
       for (const [name, cols] of Object.entries(TABLES)) {
-        db.exec(`DELETE FROM ${name}`);
-        const insert = db.prepare(`INSERT INTO ${name} (${cols.map(c => c[1]).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`);
+        const table = SQL_TABLE[name] || name;
+        db.exec(`DELETE FROM ${table}`);
+        const insert = db.prepare(`INSERT INTO ${table} (${cols.map(c => c[1]).join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`);
         for (const r of rows[name]) insert.run(...toRow(r, cols));
       }
       db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run('version', String(state.version));
@@ -92,7 +108,9 @@ export function sqliteStore(file, { legacyFile } = {}) {
     const state = {
       version: Number(version), items: all('items'), categories: all('categories'), txns: all('txns'), plans: all('plans'),
       accounts: Object.fromEntries(all('accounts').map(({ id, ...a }) => [id, a])),
-      rules: Object.fromEntries(all('rules').map(({ key, ...r }) => [key, r]))
+      rules: Object.fromEntries(all('rules').map(({ key, ...r }) => [key, r])),
+      receipts: all('receipts').map(({ id, txnId, data }) => ({ ...data, id, txnId })),
+      itemNames: Object.fromEntries(all('itemNames').map(({ key, name }) => [key, name]))
     };
     return L.upgradeState(state);
   }

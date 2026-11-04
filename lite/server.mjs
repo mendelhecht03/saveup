@@ -1,7 +1,7 @@
 import http from 'node:http';
 import path from 'node:path';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { homedir } from 'node:os';
 import { loadEnvFile } from 'node:process';
@@ -10,15 +10,20 @@ import { plaidClient, collectUpdates } from './plaid.mjs';
 import { BANK_NAME, publicTokenRequest } from './sandbox/banks.mjs';
 import { sqliteStore } from './db.mjs';
 import { claudeSuggester, addAiSuggestions } from './ai.mjs';
+import { claudeReceiptReader } from './receipts/reader.mjs';
+import { RECEIPTS } from './sandbox/receipts.mjs';
 
 const publicRoot = fileURLToPath(new URL('./public/', import.meta.url));
+const sampleRoot = fileURLToPath(new URL('./sandbox/receipts/', import.meta.url));
+const IMAGE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const MAX_IMAGE = 8 * 1024 * 1024;
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.ttf': 'font/ttf' };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 // Never send access tokens or sync cursors to the browser.
 const publicState = s => ({ ...s, items: s.items.map(({ id, name, lastSync, error }) => ({ id, name, lastSync, error })) });
 
-export async function createApp({ client, store, categorize = null, csrf = randomBytes(24).toString('hex'), pollDelay = 2500 }) {
+export async function createApp({ client, store, categorize = null, readReceipt = null, receiptDir = null, csrf = randomBytes(24).toString('hex'), pollDelay = 2500 }) {
   const state = await store.load();
   let queue = Promise.resolve();
   const mutate = task => { const run = queue.then(task); queue = run.catch(() => {}); return run; };
@@ -99,6 +104,34 @@ export async function createApp({ client, store, categorize = null, csrf = rando
       L.removeItem(state, item.id);
     },
     '/api/txn/confirm': b => { L.confirmTxn(state, b); },
+    // A sample "digital receipt" from the test bank, so receipts can be tried without a photo or an API key.
+    '/api/receipt/digital': b => {
+      const sample = RECEIPTS.find(r => r.id === b.sampleId) || (() => { throw new L.InputError('Pick a sample receipt.'); })();
+      const byName = name => state.categories.find(c => c.name.toLowerCase() === name)?.id || null;
+      const r = L.addReceipt(state, {
+        source: 'digital', txnId: b.txnId || null, merchant: sample.merchant, date: L.addDays(L.todayISO(), sample.day), time: sample.time,
+        method: sample.payment.method, last4: sample.payment.last4, taxCents: sample.taxCents, totalCents: sample.totalCents,
+        lines: sample.items.map(i => ({ code: i.code, name: i.code, amountCents: i.amountCents, categoryId: byName(i.category), unsure: !byName(i.category) })),
+        image: { sample: sample.id, mediaType: 'image/png' }
+      }, randomUUID());
+      return { receiptId: r.id };
+    },
+    '/api/receipt/manual': b => {
+      const t = b.txnId ? state.txns.find(x => x.id === b.txnId) : null;
+      const r = L.addReceipt(state, { source: 'manual', txnId: t?.id || null, merchant: t?.name || '', date: t?.date || L.todayISO(), totalCents: t?.amountCents || 0, method: 'card' }, randomUUID());
+      return { receiptId: r.id };
+    },
+    '/api/receipt/save': b => { L.saveReceipt(state, b); },
+    '/api/receipt/difference': b => { L.addDifferenceLine(state, b); },
+    '/api/receipt/attach': b => { L.attachReceipt(state, b); },
+    '/api/receipt/confirm': b => ({ txnId: L.confirmReceipt(state, b, randomUUID()).id }),
+    '/api/receipt/delete': async b => {
+      const r = L.findReceipt(state, b.id);
+      L.deleteReceipt(state, b);
+      if (r.image?.file && receiptDir) await unlink(path.join(receiptDir, r.image.file)).catch(() => {});
+    },
+    '/api/match/link': b => { L.linkPurchase(state, b); },
+    '/api/match/reject': b => { L.rejectMatch(state, b); },
     '/api/ai/suggest': async () => { if (!categorize) throw new L.InputError('Add ANTHROPIC_API_KEY to lite/.env.local to turn on AI suggestions.'); await addAiSuggestions(state, categorize); },
     '/api/txn/unreview': b => { L.unreviewTxn(state, b); },
     '/api/txn/manual': b => { L.addManual(state, b, randomUUID()); },
@@ -109,6 +142,10 @@ export async function createApp({ client, store, categorize = null, csrf = rando
     '/api/plan/delete': b => { L.deletePlan(state, b); }
   };
 
+  const checkCsrf = req => {
+    const supplied = Buffer.from(String(req.headers['x-saveup-csrf'] || ''));
+    if (supplied.length !== csrf.length || !timingSafeEqual(supplied, Buffer.from(csrf))) throw new L.InputError('Reload the app and try again.', 403);
+  };
   const server = http.createServer(async (req, res) => {
     const send = (status, data) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
     res.setHeader('Cache-Control', 'no-store');
@@ -120,10 +157,49 @@ export async function createApp({ client, store, categorize = null, csrf = rando
       if (!local.includes(req.headers.host)) throw new L.InputError('Use the local address.', 403);
       if (req.headers.origin && !local.some(h => req.headers.origin === `http://${h}`)) throw new L.InputError('Cross-origin requests are blocked.', 403);
       const url = new URL(req.url, 'http://local');
-      if (req.method === 'GET' && url.pathname === '/api/state') return send(200, { state: publicState(state), csrf, configured: client.configured, ai: Boolean(categorize) });
+      if (req.method === 'GET' && url.pathname === '/api/state') return send(200, { state: publicState(state), csrf, configured: client.configured, ai: Boolean(categorize), reader: Boolean(readReceipt),
+        samples: RECEIPTS.map(r => ({ id: r.id, merchant: r.merchant, totalCents: r.totalCents })) });
+      if (req.method === 'GET' && url.pathname === '/api/receipt/image') {
+        const r = L.findReceipt(state, url.searchParams.get('id'));
+        const file = r.image?.sample ? path.join(sampleRoot, `${r.image.sample}.png`) : r.image?.file && receiptDir ? path.join(receiptDir, r.image.file) : null;
+        const body = file && await readFile(file).catch(() => null);
+        if (!body) throw new L.InputError('No photo for this receipt.', 404);
+        res.writeHead(200, { 'Content-Type': r.image.mediaType || 'image/png' });
+        return res.end(body);
+      }
+      // A receipt photo arrives as the raw image body (the browser shrinks it first).
+      if (req.method === 'POST' && url.pathname === '/api/receipt/upload') {
+        checkCsrf(req);
+        const mediaType = String(req.headers['content-type'] || '').split(';')[0];
+        if (!IMAGE_TYPES[mediaType]) throw new L.InputError('Use a JPEG, PNG or WebP photo.', 415);
+        const chunks = [];
+        let size = 0;
+        for await (const chunk of req) { size += chunk.length; if (size > MAX_IMAGE) throw new L.InputError('That photo is too large.', 413); chunks.push(chunk); }
+        const image = Buffer.concat(chunks);
+        if (!image.length) throw new L.InputError('The photo was empty.');
+        const id = randomUUID(), file = `${id}.${IMAGE_TYPES[mediaType]}`;
+        if (receiptDir) { await mkdir(receiptDir, { recursive: true }); await writeFile(path.join(receiptDir, file), image); }
+        // Reading takes several seconds, so it happens before taking the data lock.
+        let reading = null, note = '';
+        if (!readReceipt) note = 'Reading receipts needs ANTHROPIC_API_KEY in lite/.env.local. You can type the items instead.';
+        else {
+          try { reading = await readReceipt({ imageBase64: image.toString('base64'), mediaType, categories: state.categories.map(({ id, name, description }) => ({ id, name, description })) }); }
+          catch (e) { console.warn(`Receipt reading failed: ${e.message}`); note = 'This receipt couldn\u2019t be read. You can type the items instead.'; }
+        }
+        const txnId = url.searchParams.get('txnId') || null;
+        const r = await mutate(async () => {
+          try {
+            const r = L.addReceipt(state, { ...(reading || {}), source: 'scan', txnId, image: { file, mediaType } }, id);
+            const t = !reading && txnId && state.txns.find(x => x.id === txnId);
+            if (t) Object.assign(r, { merchant: t.name, date: t.date, totalCents: t.amountCents });
+            r.note = note;
+            return r;
+          } finally { await store.save(state); }
+        });
+        return send(200, { receiptId: r.id, state: publicState(state) });
+      }
       if (req.method === 'POST' && routes[url.pathname]) {
-        const supplied = Buffer.from(String(req.headers['x-saveup-csrf'] || ''));
-        if (supplied.length !== csrf.length || !timingSafeEqual(supplied, Buffer.from(csrf))) throw new L.InputError('Reload the app and try again.', 403);
+        checkCsrf(req);
         if (!req.headers['content-type']?.startsWith('application/json')) throw new L.InputError('JSON is required.', 415);
         let raw = '';
         for await (const chunk of req) { raw += chunk; if (raw.length > 16384) throw new L.InputError('Request too large.', 413); }
@@ -166,7 +242,9 @@ async function start() {
   const legacyFile = process.env.SAVEUP_LITE_DATA || path.join(dataDir, 'state.json');
   const port = Number(process.env.LITE_PORT || 4193);
   const app = await createApp({ client: plaidClient({ clientId: process.env.PLAID_CLIENT_ID, secret: process.env.PLAID_SECRET }), store: sqliteStore(dbFile, { legacyFile }),
-    categorize: claudeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.SAVEUP_AI_MODEL || undefined }) });
+    categorize: claudeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.SAVEUP_AI_MODEL || undefined }),
+    readReceipt: claudeReceiptReader({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.SAVEUP_RECEIPT_MODEL || undefined })?.read || null,
+    receiptDir: path.join(dataDir, 'receipts') });
   app.server.listen(port, '127.0.0.1', () => console.log(`SaveUp Lite (Plaid Sandbox) at http://127.0.0.1:${port}`));
   app.refreshStale();
   setInterval(app.refreshStale, 3 * 3600e3).unref();
