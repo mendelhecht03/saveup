@@ -2,7 +2,7 @@
 // wires taps, forms, swipes and pull-to-refresh. Screens are plain functions in
 // screens/*.mjs; every piece of UI comes from ui/components.mjs.
 import * as L from './logic.mjs';
-import { bottomNav, sheet as sheetFrame, toast as toastView, esc, note } from './ui/components.mjs';
+import { bottomNav, sheet as sheetFrame, toast as toastView, esc, note, emptyState, button } from './ui/components.mjs';
 import { capture, play, closeSheet, enableSwipe, enablePullToRefresh } from './ui/motion.mjs';
 import { inboxScreen } from './screens/inbox.mjs';
 import { budgetsScreen } from './screens/budgets.mjs';
@@ -29,9 +29,11 @@ const screenFor = r => ROUTES[r.startsWith('receipt/') ? 'receipt' : r];
 const go = to => { if (route() !== to) location.hash = `/${to}`; else render(); };
 addEventListener('hashchange', () => { if (sheet) shut(); scrollTo(0, 0); render({ enter: true }); });
 
+const OFFLINE = 'Make sure your PC is on and the app is running on it, then try again.';
 async function api(path, body) {
   const post = body !== undefined;
-  const r = await fetch(path, { method: post ? 'POST' : 'GET', headers: post ? { 'Content-Type': 'application/json', 'X-SaveUp-CSRF': csrf } : {}, body: post ? JSON.stringify(body) : undefined });
+  const r = await fetch(path, { method: post ? 'POST' : 'GET', headers: post ? { 'Content-Type': 'application/json', 'X-SaveUp-CSRF': csrf } : {}, body: post ? JSON.stringify(body) : undefined })
+    .catch(() => { throw new Error(OFFLINE); });
   const data = await r.json().catch(() => ({ error: 'Unexpected response. Is the server running?' }));
   if (data.state) S = data.state;
   if (data.csrf) csrf = data.csrf;
@@ -122,6 +124,7 @@ document.addEventListener('click', e => {
     manual: () => openSheet({ type: 'manual' }),
     scan: () => openSheet({ type: 'scan', id: id || null }),
     'go-inbox': () => go('inbox'),
+    reload: () => location.reload(),
     'go-planned': () => go('planned'),
     whatif: () => openSheet({ type: 'whatif', id }),
     'receipt-open': () => shut(() => openReceipt(id)),
@@ -269,5 +272,10 @@ enablePullToRefresh($('#ptr'), {
 
 $('#app').innerHTML = '<div id="screen-root"></div><div id="nav-root"></div>';
 $('#overlay').innerHTML = '<div id="sheet-root"></div><div id="busy-root"></div><div id="toast-root"></div>';
+// Installable app: the service worker lets SaveUp open from the home screen.
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+// The home-screen shortcut "Scan a receipt" opens #/inbox?scan.
+if (location.hash.endsWith('?scan')) { history.replaceState(null, '', '#/inbox'); setTimeout(() => openSheet({ type: 'scan', id: null }), 400); }
+
 api('/api/state').then(d => { configured = d.configured; ai = d.ai; reader = d.reader; samples = d.samples || []; render({ firstBars: true, enter: true }); })
-  .catch(e => { $('#screen-root').innerHTML = `<p class="muted">${esc(e.message)}</p>`; });
+  .catch(e => { $('#screen-root').innerHTML = `<main class="screen">${emptyState({ icon: 'cloud', title: 'SaveUp isn’t reachable', text: e.message, action: button('Try again', { act: 'reload' }) })}</main>`; });
