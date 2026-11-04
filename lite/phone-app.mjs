@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const port = Number(process.env.LITE_PORT || 4193);
 const envFile = fileURLToPath(new URL('./.env.local', import.meta.url));
-const exe = process.platform === 'win32' ? 'C:\\Program Files\\Tailscale\\tailscale.exe' : 'tailscale';
+const exe = process.platform === 'win32' ? 'C:/Program Files/Tailscale/tailscale.exe' : 'tailscale';
 const run = args => spawnSync(existsSync(exe) ? exe : 'tailscale', args, { encoding: 'utf8' });
 const fail = msg => { console.error(`\n${msg}\n`); process.exit(1); };
 
@@ -22,8 +22,13 @@ const host = String(self.Self?.DNSName || '').replace(/\.$/, '');
 if (!host.endsWith('.ts.net')) fail('Turn on MagicDNS and HTTPS for your tailnet at login.tailscale.com/admin/dns, then run this again.');
 
 // Point the private HTTPS address at the app. Tailnet only: this is `serve`, never `funnel`.
-const serve = run(['serve', '--bg', `--https=443`, `http://127.0.0.1:${port}`]);
-if (serve.status !== 0) fail(`tailscale serve failed:\n${serve.stderr || serve.stdout}\nIf it mentions HTTPS certificates, turn on HTTPS at login.tailscale.com/admin/dns.`);
+// The first time, Tailscale waits for you to allow Serve in your account. Give up after
+// a minute and show that link, instead of hanging silently.
+const serve = spawnSync(existsSync(exe) ? exe : 'tailscale', ['serve', '--bg', '--https=443', `http://127.0.0.1:${port}`], { encoding: 'utf8', timeout: 60_000 });
+const said = `${serve.stdout || ''}${serve.stderr || ''}`;
+const enable = said.match(/https:\/\/login\.tailscale\.com\/f\/serve\S*/);
+if (serve.error?.code === 'ETIMEDOUT') fail(`Tailscale is waiting for you to allow Serve.${enable ? ` Open ${enable[0]} and click Enable,` : ' Open the Tailscale admin page and allow Serve,'} then run this again.`);
+if (serve.status !== 0) fail(`tailscale serve failed:\n${said}\nIf it mentions HTTPS certificates, turn on HTTPS at login.tailscale.com/admin/dns.`);
 
 // The app only answers requests addressed to hosts it knows.
 const env = existsSync(envFile) ? readFileSync(envFile, 'utf8') : '';
