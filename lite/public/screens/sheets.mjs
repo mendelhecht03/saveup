@@ -48,18 +48,6 @@ export function reviewSheet(S, t) {
   </form>`;
 }
 
-export function manualSheet(S, today) {
-  return `<form data-form="manual" class="stack-lg">
-    ${moneyField('amount', 'Amount', { big: true })}
-    ${textField('merchant', 'Merchant', { required: true, placeholder: 'e.g. Corner Cafe' })}
-    ${textField('date', 'Date', { type: 'date', value: today, required: true })}
-    ${segmented('paid', [['cash', 'Cash', null], ['card', 'Card', null]], { value: 'card', legend: 'Paid with' })}
-    ${selectField('cat', 'Budget', S.categories.map(c => [c.id, c.name]))}
-    ${textArea('note', 'Note', { placeholder: 'e.g. coffee with a friend', optional: true, rows: 2 })}
-    <p class="note note-info paid-hint" data-paid="card">Card purchases wait for their bank charge, then link to it once. Cash purchases count right away.</p>
-    ${button('Save purchase', { type: 'submit', full: true, size: 'lg' })}</form>`;
-}
-
 const ICON_CHOICES = ['groceries', 'recreation', 'personal-care', 'housing', 'household', 'travel', 'education', 'clothing', 'dining', 'coffee', 'transportation', 'health', 'gifts', 'pets', 'phone', 'utilities', 'other'];
 export function categorySheet(S, c) {
   const current = c ? catArt(c) || 'other' : 'groceries';

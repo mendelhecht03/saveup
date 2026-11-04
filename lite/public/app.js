@@ -11,8 +11,9 @@ import { moreScreen, accountsScreen, historyScreen, historyList, historyHits, la
 import { galleryScreen } from './screens/gallery.mjs';
 import { subscriptionsScreen, iousScreen, goalsScreen, cashScreen, returnsScreen, settingsScreen } from './screens/preview.mjs';
 import { whatIfSheet, whatIfResult } from './screens/week.mjs';
-import { reviewSheet, manualSheet, categorySheet, planSheet, iconEmoji, PRIORITY_STOPS } from './screens/sheets.mjs';
+import { reviewSheet, categorySheet, planSheet, iconEmoji, PRIORITY_STOPS } from './screens/sheets.mjs';
 import { receiptStartSheet, receiptScreen, matchCard } from './screens/receipt.mjs';
+import { quickAddSheet, refreshQuickAdd } from './screens/quickadd.mjs';
 import { byDate } from './screens/shared.mjs';
 
 let S = null, csrf = '', configured = true, ai = false, reader = false, samples = [], busy = '', sheet = null, toastTimer = 0;
@@ -68,13 +69,30 @@ function render({ enter = false, firstBars = false } = {}) {
   if (focused) { const s = $('#search'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
   play(prev, document, { firstBars: firstBars || enter });
 }
+// Keeps the full-screen Add purchase card the size of the visible screen, so its
+// toolbar stays just above the iPhone keyboard instead of hiding behind it.
+function fitComposer() {
+  const c = $('.composer'), vv = window.visualViewport;
+  if (c && vv) { c.style.height = `${vv.height}px`; c.style.top = `${vv.offsetTop}px`; }
+}
+window.visualViewport?.addEventListener('resize', fitComposer);
+window.visualViewport?.addEventListener('scroll', fitComposer);
+
 function openSheet(next) {
   sheet = next;
+  if (sheet.type === 'manual') {
+    // Splitwise-style: full screen, keyboard straight onto "Where?". Focusing inside
+    // the tap that opened it is what lets iPhone show the keyboard.
+    $('#sheet-root').innerHTML = quickAddSheet(S, L.todayISO());
+    document.body.classList.add('is-locked');
+    $('.composer [name="merchant"]').focus({ preventScroll: true });
+    fitComposer();
+    return;
+  }
   const t = sheet.type === 'txn' && S.txns.find(x => x.id === sheet.id);
   if (sheet.type === 'txn' && !t) return shut();
   const views = {
     txn: () => [reviewSheet(S, t), t.reviewed ? 'Purchase' : 'Review purchase'],
-    manual: () => [manualSheet(S, L.todayISO()), 'Add purchase'],
     category: () => { const c = S.categories.find(x => x.id === sheet.id); return [categorySheet(S, c), c ? `${c.name} budget` : 'New budget']; },
     plan: () => { const p = S.plans.find(x => x.id === sheet.id); return [planSheet(S, p), p ? 'Edit plan' : 'Plan a purchase']; },
     scan: () => [receiptStartSheet(S, S.txns.find(x => x.id === sheet.id), { reader, samples }), 'Add receipt'],
@@ -124,6 +142,11 @@ document.addEventListener('click', e => {
     manual: () => openSheet({ type: 'manual' }),
     scan: () => openSheet({ type: 'scan', id: id || null }),
     'go-inbox': () => go('inbox'),
+    'qa-paid': () => { const f = el.form; f.paid.value = f.paid.value === 'card' ? 'cash' : 'card'; refreshQuickAdd(S, f, L.todayISO()); },
+    'qa-cat': () => { const list = el.form.querySelector('.qa-cats'); list.hidden = !list.hidden; el.setAttribute('aria-expanded', String(!list.hidden)); },
+    'qa-pick': () => { const f = el.form; f.cat.value = el.dataset.id; f.dataset.picked = '1'; f.querySelector('.qa-cats').hidden = true; refreshQuickAdd(S, f, L.todayISO()); if (!f.amount.value) f.amount.focus(); },
+    'qa-note': () => { const n = el.form.querySelector('.composer-note'); n.hidden = false; n.querySelector('textarea').focus(); },
+    'qa-date': () => { const d = el.form.date; try { d.showPicker(); } catch { d.focus(); } },
     reload: () => location.reload(),
     'go-planned': () => go('planned'),
     whatif: () => openSheet({ type: 'whatif', id }),
@@ -163,11 +186,13 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   if (e.target.name === 'kind') { const cats = $('.sheet .cats'); if (cats) cats.hidden = e.target.value !== 'spending'; }
   if (e.target.name === 'subs-tab') { ui.subsTab = e.target.value; render(); }
+  if (e.target.closest?.('.composer')) refreshQuickAdd(S, e.target.form, L.todayISO());
   if (e.target.name === 'receipt-view') { editReceipt(lines => lines, () => { ui.receiptView = e.target.value; }); }
   if (e.target.matches('[data-upload]') && e.target.files?.[0]) uploadReceipt(e.target.files[0], e.target.dataset.upload || null);
 });
 document.addEventListener('input', e => {
   const t = e.target;
+  if (t.closest('.composer')) refreshQuickAdd(S, t.form, L.todayISO());
   if (t.id === 'search') { ui.search = t.value; $('#history-list').innerHTML = historyList(S, historyHits(S, ui.search)); }
   if (t.type === 'range') t.style.setProperty('--fill', `${((t.value - t.min) * 100 / (t.max - t.min)).toFixed(2)}%`);
   if (t.name === 'whatif') { const out = $('#whatif-out'); if (out) out.innerHTML = whatIfResult(S, S.plans.find(p => p.id === t.dataset.plan), Number(t.value), L.todayISO()); }
@@ -194,7 +219,11 @@ document.addEventListener('submit', e => {
   };
   forms[f.dataset.form]?.();
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheet) shut(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && sheet) shut();
+  // In Add purchase, Return on "Where?" moves to the amount instead of submitting.
+  if (e.key === 'Enter' && e.target.name === 'merchant' && e.target.closest('.composer')) { e.preventDefault(); e.target.form.amount.focus(); }
+});
 
 // ---- receipts
 function openReceipt(id) { ui.receiptStep = 'items'; ui.receiptView = 'copy'; location.hash = `/receipt/${id}`; }

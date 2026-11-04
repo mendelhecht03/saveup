@@ -55,7 +55,7 @@ export function countUp(el, from, to, { duration = 600 } = {}) {
 
 // ---- sheets: CSS springs them open; closing plays the reverse before removal.
 export function closeSheet(done) {
-  const parts = document.querySelectorAll('.sheet, .sheet-backdrop');
+  const parts = document.querySelectorAll('.sheet, .sheet-backdrop, .composer');
   if (!parts.length || reduced()) return done();
   parts.forEach(p => p.classList.add('is-closing'));
   setTimeout(done, 240);
