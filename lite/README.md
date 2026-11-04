@@ -4,7 +4,7 @@ A cheap, minimal end-to-end version of SaveUp built from the Obsidian notes, so 
 
 ## Run
 
-1. Put Sandbox keys in `lite/.env.local` (ignored by Git): `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV=sandbox`. Optional: `ANTHROPIC_API_KEY` turns on AI budget suggestions (`SAVEUP_AI_MODEL` picks the model, default `claude-opus-5-5`).
+1. Put Sandbox keys in `lite/.env.local` (ignored by Git): `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV=sandbox`. Optional: `ANTHROPIC_API_KEY` turns on AI budget suggestions (`SAVEUP_AI_MODEL` and `SAVEUP_RECEIPT_MODEL` pick the models; both default to the low-cost `claude-haiku-5-5`).
 2. `npm start` serves http://127.0.0.1:4193 (loopback only).
 3. `npm run phone` prints a private HTTPS link that expires after 8 hours. It needs `cloudflared` at `%LOCALAPPDATA%\SaveUp\tools\cloudflared.exe` or at `CLOUDFLARED_PATH`. Never commit the link.
 4. `npm run check` runs syntax checks and ledger tests.

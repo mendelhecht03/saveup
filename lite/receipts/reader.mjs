@@ -37,7 +37,7 @@ export function receiptSchema(ids) {
   };
 }
 
-export function claudeReceiptReader({ apiKey, model = 'claude-opus-5-5', fetchImpl = fetch } = {}) {
+export function claudeReceiptReader({ apiKey, model = 'claude-haiku-5-5', fetchImpl = fetch } = {}) {
   if (!apiKey) return null;
   return {
     async read({ imageBase64, mediaType, categories = [] }) {

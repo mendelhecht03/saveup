@@ -39,7 +39,7 @@ test('reader sends the image before the text and limits budgets to the given ids
   assert.equal(url, 'https://api.anthropic.com/v1/messages');
   assert.equal(init.headers['x-api-key'], 'test-key');
   assert.equal(init.headers['anthropic-version'], '2026-10-21');
-  assert.equal(body.model, 'claude-opus-5-5');
+  assert.equal(body.model, 'claude-haiku-5-5');
   const content = body.messages[0].content;
   assert.deepEqual(content.map(b => b.type), ['image', 'text']);
   assert.deepEqual(content[0].source, { type: 'base64', media_type: 'image/png', data: 'AAAA' });
