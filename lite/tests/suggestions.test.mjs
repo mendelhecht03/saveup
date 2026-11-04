@@ -80,7 +80,7 @@ test('the Claude request asks for JSON matching the budgets, and a failure stays
   } });
   const s = withTxns(plaidTxn('c1', 12, { name: 'Cava' }));
   await addAiSuggestions(s, ok);
-  assert.equal(sent.model, 'claude-opus-5-5');
+  assert.equal(sent.model, 'claude-haiku-5-5');
   assert.equal(sent.output_config.format.type, 'json_schema');
   assert.deepEqual(sent.output_config.format.schema.properties.suggestions.items.properties.categoryId.enum, ['', ...s.categories.map(c => c.id)]);
   assert.equal(JSON.parse(sent.messages[0].content).transactions[0].merchant, 'Cava');
