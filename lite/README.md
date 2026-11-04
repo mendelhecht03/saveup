@@ -11,10 +11,6 @@ A cheap, minimal end-to-end version of SaveUp built from the Obsidian notes, so 
 
 Data is a JSON file at `%LOCALAPPDATA%\SaveUp\lite-sandbox\state.json` (override with `SAVEUP_LITE_DATA`). Access tokens are stored there and are never sent to the browser.
 
-## Interface
-
-One design system, no framework or build step. `public/ui/tokens.css` defines every color, type size, radius, shadow, spacing and motion value. `public/ui/components.mjs` and `components.css` hold the reusable pieces (cards, buttons, pills, chips, budget bar, list rows, sheets, nav, fields, empty states, toasts). `public/screens/*.mjs` build each screen only from those pieces, as plain functions of the data. Line icons are only for controls; content uses 3D icons (`ui/icons.mjs`, emoji placeholders until the real images exist). More › Design system shows every component.
-
 ## Included
 
 - **Inbox:** the weekly (Sun–Sat) review bucket. Confirming is always deliberate. Suggestions come from previously confirmed merchant and amount pairs.

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "npm --prefix lite start",
     "phone": "node lite/phone.mjs",
+    "seed": "node lite/sandbox/seed.mjs",
     "check": "npm --prefix lite run check",
     "check:pages": "node scripts/check-pages.mjs",
     "test": "npm run check"
