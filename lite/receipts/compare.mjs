@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { RECEIPTS } from '../sandbox/receipts.mjs';
 import { claudeReceiptReader, checkTotals } from './reader.mjs';
+import { veryfiReceiptReader } from './veryfi.mjs';
 
 const here = p => fileURLToPath(new URL(p, import.meta.url));
 const norm = s => String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
@@ -56,6 +57,9 @@ async function main() {
   const categories = [...new Set(RECEIPTS.flatMap(r => r.items.map(i => i.category)))].map(c => ({ id: c, name: c, description: '' }));
   if (claude) readers.push({ name: 'Claude', read: file => claude.read({ imageBase64: readFileSync(file).toString('base64'), mediaType: 'image/png', categories }) });
   else console.log('Claude: skipped (no ANTHROPIC_API_KEY in the environment or lite/.env.local).');
+  const veryfi = veryfiReceiptReader({ clientId: process.env.VERYFI_CLIENT_ID, apiKey: process.env.VERYFI_API_KEY, username: process.env.VERYFI_USERNAME || undefined });
+  if (veryfi) readers.push({ name: 'Veryfi', read: file => veryfi.read({ imageBase64: readFileSync(file).toString('base64'), mediaType: 'image/png', categories }) });
+  else console.log('Veryfi: skipped (no VERYFI_CLIENT_ID and VERYFI_API_KEY in lite/.env.local).');
   if (hasTesseract()) readers.push({ name: 'Tesseract', read: async file => runTesseract(file) });
   else console.log('Tesseract: skipped (`tesseract` is not on PATH).');
   if (!readers.length) { console.log('No receipt reader available, nothing to compare.'); return; }
