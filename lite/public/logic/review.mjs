@@ -23,7 +23,8 @@ export function confirmTxn(state, { id, categoryId, transferKind, note, priority
   const sug = suggest(state, t);
   const took = sug && (sug.categoryId || null) === fields.categoryId && (sug.transferKind || null) === (fields.transferKind || null);
   fields.suggestionTaken = took ? sug.source : null;
-  Object.assign(t, fields, { reviewed: true, amountChanged: false });
+  // Choosing one budget here replaces any split; the receipt stays attached.
+  Object.assign(t, fields, { splits: null, reviewed: true, amountChanged: false });
   const key = merchantKey(t.name);
   const rule = { categoryId: t.categoryId, transferKind: t.transferKind || null };
   if (key) state.rules[key] = state.rules[`${key}|${t.amountCents}`] = rule;
@@ -54,4 +55,5 @@ export function deleteTxn(state, { id }) {
   const t = findTxn(state, id);
   if (t.source !== 'manual') throw new InputError('Bank transactions come from your bank and cannot be deleted.');
   state.txns = state.txns.filter(x => x !== t);
+  for (const r of state.receipts || []) if (r.txnId === t.id) r.txnId = null;
 }

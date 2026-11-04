@@ -5,6 +5,7 @@ import * as L from '../logic.mjs';
 import { pageHeader, listSection, button, iconButton, emptyState, link, esc } from '../ui/components.mjs';
 import { line } from '../ui/icons.mjs';
 import { txnRow, rangeLabel, byDate } from './shared.mjs';
+import { matchCard } from './receipt.mjs';
 
 export const QUEUE_SIZE = 5;
 
@@ -24,7 +25,10 @@ export function inboxScreen({ S, ui, today }) {
   else if (!open.length) body = emptyState({ icon: 'inbox-done', title: week.length ? 'Everything here is reviewed' : 'Nothing this week yet', text: older.length ? `${older.length} older purchases are still waiting.` : 'New purchases show up after the next sync.', action: older.length ? button('Review older purchases', { variant: 'secondary', act: 'jump', data: { date: older[0].date } }) : '' });
   else body = listSection({ id: 'queue', cls: 'queue', rows: shown.map(t => txnRow(S, t, { queue: true })),
     footer: open.length > QUEUE_SIZE ? link(ui.showAll ? 'Show fewer' : `${open.length - QUEUE_SIZE} more waiting`, { act: 'show-all' }) : '' });
+  // Possible links between a logged purchase and its bank charge come first: nothing links until you say so.
+  const matches = L.openMatches(S).map(m => matchCard(S, m)).join('');
   return `${pageHeader({ title: 'Inbox', action: weekPicker, sub })}
+    ${matches}
     ${body}
     ${open.length && older.length ? `<button type="button" class="card older" data-act="jump" data-date="${esc(older[0].date)}">${line('clock')}<span class="grow"><b>${older.length} older purchase${older.length === 1 ? '' : 's'}</b><small>From before ${esc(rangeLabel(start, end).split(' – ')[0])}</small></span>${line('chevronRight', { size: 18 })}</button>` : ''}
     <div class="btn-row">${button('Add purchase', { icon: 'plus', act: 'manual' })}${button('Scan receipt', { icon: 'camera', variant: 'ghost', act: 'scan' })}</div>`;

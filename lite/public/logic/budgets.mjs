@@ -1,17 +1,20 @@
 // What each budget has spent, has pending, and has left this period.
 import { periodRange, weekRange } from './dates.mjs';
+import { portions } from './splits.mjs';
 
 // Pending money = bank says pending, or a hand-logged purchase still waiting for its bank match.
 export const isPendingMoney = t => t.pending || (t.source === 'manual' && !t.verified);
-export const countsAsSpending = t => t.reviewed && t.categoryId && (!t.transfer || t.transferKind === 'spending');
+export const countsAsSpending = t => t.reviewed && portions(t).length > 0 && (!t.transfer || t.transferKind === 'spending');
 
 export function budgetSummary(state, today) {
   return state.categories.map(c => {
     const { start, end } = periodRange(c.interval, today);
-    const txns = state.txns.filter(t => countsAsSpending(t) && t.categoryId === c.id && t.date >= start && t.date <= end)
+    // A split purchase appears in each of its budgets with only that budget's share (`shareCents`).
+    const txns = state.txns.filter(t => countsAsSpending(t) && t.date >= start && t.date <= end)
+      .flatMap(t => portions(t).filter(p => p.categoryId === c.id).map(p => ({ ...t, shareCents: p.amountCents })))
       .sort((a, b) => b.date.localeCompare(a.date));
     let spent = 0, pending = 0;
-    for (const t of txns) isPendingMoney(t) ? pending += t.amountCents : spent += t.amountCents;
+    for (const t of txns) isPendingMoney(t) ? pending += t.shareCents : spent += t.shareCents;
     const plans = state.plans.filter(p => p.categoryId === c.id);
     return {
       ...c, start, end, txns, spent, pending, total: spent + pending,

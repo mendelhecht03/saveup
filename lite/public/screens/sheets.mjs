@@ -3,6 +3,7 @@ import * as L from '../logic.mjs';
 import { iconTile, button, choiceList, textField, moneyField, textArea, selectField, segmented, stepSlider, checkbox, note, pills, esc, emptyState, categoryChip } from '../ui/components.mjs';
 import { ART } from '../ui/icons.mjs';
 import { txnIcon, statusPills, signed, longDate, accountLabel, catArt } from './shared.mjs';
+import { splitSummary } from './receipt.mjs';
 
 export const PRIORITY_STOPS = L.PRIORITIES;
 
@@ -31,8 +32,12 @@ export function reviewSheet(S, t) {
     ${sug ? note(sug.source === 'ai'
       ? `AI suggestion${sug.reason ? `: ${sug.reason.replace(/\.?$/, '.')}` : '.'} Nothing is confirmed until you tap Confirm.`
       : `Suggested from ${sug.exact ? 'an identical past purchase' : 'past purchases here'}. Nothing is confirmed until you tap Confirm.`, { icon: 'sparkle' }) : ''}
+    ${splitSummary(S, t)}
+    ${t.amountCents > 0 && (!t.transfer || t.transferKind === 'spending') ? (t.receiptId
+      ? (t.splits?.length ? '' : button('View receipt', { variant: 'secondary', icon: 'file', full: true, act: 'receipt-open', data: { id: t.receiptId } }))
+      : button('Add receipt', { variant: 'secondary', icon: 'camera', full: true, act: 'scan', data: { id: t.id } })) : ''}
     ${transfer}
-    <div class="cats" ${t.transfer && kind !== 'spending' ? 'hidden' : ''}>${choiceList('cat', categoryChoices(S, selected, sug?.categoryId), { value: selected, legend: 'Which budget?', hint: t.transfer ? '' : 'The store name and amount don’t tell us what you bought.' })}</div>
+    <div class="cats" ${t.transfer && kind !== 'spending' ? 'hidden' : ''}>${choiceList('cat', categoryChoices(S, selected, sug?.categoryId), { value: selected, legend: 'Which budget?', hint: t.splits?.length ? 'Picking one budget here replaces the split.' : t.transfer ? '' : 'The store name and amount don’t tell us what you bought.' })}</div>
     <div class="stack"><b class="section-label">Optional details</b>
       ${textArea('note', 'Note', { value: t.note, placeholder: 'e.g. toothbrush, speeding ticket', optional: true, rows: 2 })}
       ${stepSlider('priority', 'Priority', PRIORITY_STOPS, { value: Math.min(t.priority || 2, PRIORITY_STOPS.length), optional: true })}</div>
@@ -78,7 +83,3 @@ export function planSheet(S, p) {
     ${note('The high estimate is reserved in its budget, so you can see what it leaves.')}
     ${button(p ? 'Save plan' : 'Add plan', { type: 'submit', full: true, size: 'lg' })}</form>`;
 }
-
-export const scanSheet = t => emptyState({ icon: 'scan-receipt', title: 'Receipt scanning is on its way',
-  text: `${t ? `Soon you’ll scan the receipt for ${t.name} (${signed(t)}) here. ` : ''}You’ll be able to take a photo or choose a file, check what was read, and split it across budgets.${t ? '' : ' For now, add the purchase by hand.'}`,
-  action: t ? '' : button('Add purchase', { act: 'manual' }) });

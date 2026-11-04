@@ -1,12 +1,11 @@
 // Applying Plaid /transactions/sync batches without double counting.
 import { looksLikeTransfer } from './transfers.mjs';
-const toDate = s => new Date(`${s}T00:00:00Z`);
 // ---- bank sync
-const REVIEW_FIELDS = ['reviewed', 'categoryId', 'transferKind', 'note', 'priority'];
+const REVIEW_FIELDS = ['reviewed', 'categoryId', 'transferKind', 'note', 'priority', 'splits', 'receiptId', 'notMatch', 'matchedFrom', 'ai'];
 
-// Apply one complete /transactions/sync batch. Pending→posted keeps the review
-// (and reopens it if the amount changed); a hand-logged purchase waiting for a
-// match is merged into the bank record so it is never counted twice.
+// Apply one complete /transactions/sync batch. Pending→posted keeps the review,
+// split and receipt (and reopens review if the amount changed). A hand-logged
+// purchase is never merged here: matching waits for the user to tap Link.
 export function applySync(state, itemId, batch) {
   for (const a of batch.accounts || []) state.accounts[a.account_id] = { itemId, name: a.name, mask: a.mask || '' };
   for (const p of batch.added || []) {
@@ -19,16 +18,11 @@ export function applySync(state, itemId, batch) {
     };
     t.transfer = looksLikeTransfer(`${p.name} ${p.merchant_name || ''}`, t.pfc);
     const previous = p.pending_transaction_id && state.txns.find(x => x.id === p.pending_transaction_id);
-    const manual = !previous && state.txns.find(x => x.source === 'manual' && x.expectMatch && !x.verified &&
-      x.amountCents === t.amountCents && Math.abs(toDate(x.date) - toDate(t.date)) <= 7 * 864e5);
     if (previous) {
-      for (const f of REVIEW_FIELDS) t[f] = previous[f];
+      for (const f of REVIEW_FIELDS) if (previous[f] !== undefined) t[f] = previous[f];
       if (previous.reviewed && previous.amountCents !== t.amountCents) Object.assign(t, { reviewed: false, amountChanged: true });
+      for (const r of state.receipts || []) if (r.txnId === previous.id) r.txnId = t.id;
       state.txns = state.txns.filter(x => x !== previous);
-    } else if (manual) {
-      for (const f of REVIEW_FIELDS) t[f] = manual[f];
-      t.matchedFrom = manual.name;
-      state.txns = state.txns.filter(x => x !== manual);
     }
     state.txns.push(t);
   }
@@ -46,5 +40,6 @@ export function applySync(state, itemId, batch) {
 export function removeItem(state, itemId) {
   state.items = state.items.filter(i => i.id !== itemId);
   state.txns = state.txns.filter(t => t.itemId !== itemId);
+  for (const r of state.receipts || []) if (r.txnId && !state.txns.some(t => t.id === r.txnId)) r.txnId = null;
   for (const [id, a] of Object.entries(state.accounts)) if (a.itemId === itemId) delete state.accounts[id];
 }

@@ -89,3 +89,24 @@ test('every 3D icon key has a placeholder and a description for the final image'
   for (const [key, [emoji, tint, description]] of Object.entries(ART)) assert.ok(emoji && tint && description.length > 5, key);
   assert.equal(artFor('missing', '☕').emoji, '☕');
 });
+
+test('receipt screens render from the component set and escape what was read', async () => {
+  const { receiptScreen, receiptStartSheet, matchCard } = await import('../public/screens/receipt.mjs');
+  const s = L.newState();
+  L.applySync(s, 'item1', { added: [plaidTxn('t1', 10, { name: 'Shop' })] });
+  const r = L.addReceipt(s, { source: 'scan', txnId: 't1', merchant: '<b>Shop</b>', date: '2026-11-02', totalCents: 1000,
+    lines: [{ code: 'X<1>', name: 'X<1>', amountCents: 1000, categoryId: groceries, unsure: true }] }, 'r1');
+  const items = receiptScreen({ S: s, ui: { receiptStep: 'items' }, route: 'receipt/r1' });
+  assert.match(items, /Editable copy|rline/);
+  assert.match(items, /Check this/);
+  assert.doesNotMatch(items, /<b>Shop<\/b>|X<1>/, 'receipt text is escaped');
+  const split = receiptScreen({ S: s, ui: { receiptStep: 'split' }, route: 'receipt/r1' });
+  assert.match(split, /Difference/);
+  assert.match(split, /Confirm breakdown/);
+  assert.match(receiptStartSheet(s, s.txns[0], { reader: false, samples: [{ id: 'a', merchant: 'Target', totalCents: 15000 }] }), /Take photo[\s\S]*Choose file[\s\S]*Use digital receipt[\s\S]*Split manually/);
+  L.addManual(s, { merchant: 'Shop', amountCents: 1000, date: '2026-11-02', categoryId: groceries, expectMatch: true }, 'm1');
+  L.applySync(s, 'item1', { added: [plaidTxn('t2', 10, { name: 'Shop' })] });
+  const [m] = L.openMatches(s);
+  assert.match(matchCard(s, m), /Looks like the same purchase[\s\S]*Link purchase[\s\S]*Not a match/);
+  assert.equal(r.id, 'r1');
+});

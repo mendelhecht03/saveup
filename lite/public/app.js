@@ -2,24 +2,27 @@
 // wires taps, forms, swipes and pull-to-refresh. Screens are plain functions in
 // screens/*.mjs; every piece of UI comes from ui/components.mjs.
 import * as L from './logic.mjs';
-import { bottomNav, sheet as sheetFrame, toast as toastView, esc } from './ui/components.mjs';
+import { bottomNav, sheet as sheetFrame, toast as toastView, esc, note } from './ui/components.mjs';
 import { capture, play, closeSheet, enableSwipe, enablePullToRefresh } from './ui/motion.mjs';
 import { inboxScreen } from './screens/inbox.mjs';
 import { budgetsScreen } from './screens/budgets.mjs';
 import { plannedScreen } from './screens/planned.mjs';
 import { moreScreen, accountsScreen, historyScreen, historyList, historyHits, labScreen } from './screens/more.mjs';
 import { galleryScreen } from './screens/gallery.mjs';
-import { reviewSheet, manualSheet, categorySheet, planSheet, scanSheet, iconEmoji, PRIORITY_STOPS } from './screens/sheets.mjs';
+import { reviewSheet, manualSheet, categorySheet, planSheet, iconEmoji, PRIORITY_STOPS } from './screens/sheets.mjs';
+import { receiptStartSheet, receiptScreen, matchCard } from './screens/receipt.mjs';
 import { byDate } from './screens/shared.mjs';
 
-let S = null, csrf = '', configured = true, ai = false, busy = '', sheet = null, toastTimer = 0;
-const ui = { weekOffset: 0, showAll: false, openBudgets: new Set(), editPlans: false, search: '' };
+let S = null, csrf = '', configured = true, ai = false, reader = false, samples = [], busy = '', sheet = null, toastTimer = 0;
+const ui = { weekOffset: 0, showAll: false, openBudgets: new Set(), editPlans: false, search: '', receiptStep: 'items', receiptView: 'copy' };
 const $ = s => document.querySelector(s);
 const toCents = v => { const n = Number(String(v).replace(/[$,\s]/g, '')); return Number.isFinite(n) && String(v).trim() ? Math.round(n * 100) : NaN; };
 
 // ---- routing: #/inbox, #/budgets, #/planned, #/more, #/more/history ...
-const ROUTES = { inbox: inboxScreen, budgets: budgetsScreen, planned: plannedScreen, more: moreScreen, 'more/accounts': accountsScreen, 'more/history': historyScreen, 'more/lab': labScreen, 'more/gallery': galleryScreen };
-const route = () => { const r = location.hash.replace(/^#\/?/, ''); return ROUTES[r] ? r : 'inbox'; };
+// #/receipt/<id> is the one route with a parameter.
+const ROUTES = { inbox: inboxScreen, budgets: budgetsScreen, planned: plannedScreen, more: moreScreen, 'more/accounts': accountsScreen, 'more/history': historyScreen, 'more/lab': labScreen, 'more/gallery': galleryScreen, receipt: receiptScreen };
+const route = () => { const r = location.hash.replace(/^#\/?/, ''); return ROUTES[r] || /^receipt\/[\w-]+$/.test(r) ? r : 'inbox'; };
+const screenFor = r => ROUTES[r.startsWith('receipt/') ? 'receipt' : r];
 const go = to => { if (route() !== to) location.hash = `/${to}`; else render(); };
 addEventListener('hashchange', () => { if (sheet) shut(); scrollTo(0, 0); render({ enter: true }); });
 
@@ -53,9 +56,9 @@ function weekBadge() {
 function render({ enter = false, firstBars = false } = {}) {
   if (!S) return;
   const prev = capture();
-  const r = route(), tab = r.split('/')[0];
+  const r = route(), tab = r.startsWith('receipt/') ? 'inbox' : r.split('/')[0];
   const focused = document.activeElement?.id === 'search';
-  $('#screen-root').innerHTML = `<main class="screen${enter ? ' screen-enter' : ''}">${ROUTES[r]({ S, ui, today: L.todayISO(), configured, ai })}</main>`;
+  $('#screen-root').innerHTML = `<main class="screen${enter ? ' screen-enter' : ''}">${screenFor(r)({ S, ui, today: L.todayISO(), configured, ai, route: r })}</main>`;
   $('#nav-root').innerHTML = bottomNav(tab, { badge: weekBadge() });
   if (focused) { const s = $('#search'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
   play(prev, document, { firstBars: firstBars || enter });
@@ -69,7 +72,8 @@ function openSheet(next) {
     manual: () => [manualSheet(S, L.todayISO()), 'Add purchase'],
     category: () => { const c = S.categories.find(x => x.id === sheet.id); return [categorySheet(S, c), c ? `${c.name} budget` : 'New budget']; },
     plan: () => { const p = S.plans.find(x => x.id === sheet.id); return [planSheet(S, p), p ? 'Edit plan' : 'Plan a purchase']; },
-    scan: () => [scanSheet(S.txns.find(x => x.id === sheet.id)), 'Scan receipt']
+    scan: () => [receiptStartSheet(S, S.txns.find(x => x.id === sheet.id), { reader, samples }), 'Add receipt'],
+    match: () => { const m = L.openMatches(S).find(x => x.bank.id === sheet.id); return m ? [matchCard(S, m, { open: true }), 'Match purchase'] : [note('This match was already handled.'), 'Match purchase']; }
   };
   const [body, title] = views[sheet.type]();
   $('#sheet-root').innerHTML = sheetFrame(body, { title });
@@ -112,7 +116,22 @@ document.addEventListener('click', e => {
     'show-all': () => { ui.showAll = !ui.showAll; render(); },
     open: () => openSheet({ type: 'txn', id }),
     manual: () => openSheet({ type: 'manual' }),
-    scan: () => openSheet({ type: 'scan' }),
+    scan: () => openSheet({ type: 'scan', id: id || null }),
+    'go-inbox': () => go('inbox'),
+    'receipt-open': () => shut(() => openReceipt(id)),
+    'receipt-digital': () => act(async () => { const { receiptId } = await api('/api/receipt/digital', { sampleId: el.dataset.sample, txnId: el.dataset.txn || null }); shut(() => openReceipt(receiptId)); }),
+    'receipt-manual': () => act(async () => { const { receiptId } = await api('/api/receipt/manual', { txnId: el.dataset.txn || null }); shut(() => openReceipt(receiptId)); }),
+    'receipt-add-line': () => editReceipt(lines => [...lines, { code: 'ITEM', name: 'New item', amountCents: 0, categoryId: null }]),
+    'receipt-remove-line': () => editReceipt(lines => lines.filter((_, i) => i !== Number(el.dataset.line))),
+    'receipt-next': () => editReceipt(lines => lines, () => { ui.receiptStep = 'split'; scrollTo(0, 0); }),
+    'receipt-back': () => { ui.receiptStep = 'items'; render(); },
+    'receipt-difference': () => act(() => api('/api/receipt/difference', { id, categoryId: $('[name="diff-cat"]')?.value || null }), { done: 'Difference assigned' }),
+    'receipt-attach': () => act(() => api('/api/receipt/attach', { id, txnId: el.dataset.txn }), { done: 'Attached to that purchase' }),
+    'receipt-confirm': () => act(async () => { await api('/api/receipt/confirm', { id }); go('inbox'); }, { done: 'Split saved' }),
+    'receipt-delete': () => confirm('Remove this receipt? The purchase stays.') && act(async () => { await api('/api/receipt/delete', { id }); go('inbox'); }, { done: 'Receipt removed' }),
+    'match-link': () => shut(() => act(() => api('/api/match/link', { bankId: el.dataset.bank, manualId: el.dataset.manual }), { done: 'Linked. It counts once.' })),
+    'match-reject': () => shut(() => act(() => api('/api/match/reject', { bankId: el.dataset.bank, manualId: el.dataset.manual }), { done: 'Kept separate' })),
+    'match-open': () => openSheet({ type: 'match', id: el.dataset.bank }),
     'ai-suggest': () => act(() => api('/api/ai/suggest', {}), { wait: 'Asking for suggestions…', done: 'Suggestions updated' }),
     category: () => openSheet({ type: 'category', id }),
     plan: () => openSheet({ type: 'plan', id }),
@@ -135,6 +154,8 @@ document.addEventListener('click', e => {
 
 document.addEventListener('change', e => {
   if (e.target.name === 'kind') { const cats = $('.sheet .cats'); if (cats) cats.hidden = e.target.value !== 'spending'; }
+  if (e.target.name === 'receipt-view') { editReceipt(lines => lines, () => { ui.receiptView = e.target.value; }); }
+  if (e.target.matches('[data-upload]') && e.target.files?.[0]) uploadReceipt(e.target.files[0], e.target.dataset.upload || null);
 });
 document.addEventListener('input', e => {
   const t = e.target;
@@ -164,6 +185,50 @@ document.addEventListener('submit', e => {
   forms[f.dataset.form]?.();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheet) shut(); });
+
+// ---- receipts
+function openReceipt(id) { ui.receiptStep = 'items'; ui.receiptView = 'copy'; location.hash = `/receipt/${id}`; }
+
+// Read the editable copy back into data. Codes and "unsure" flags come from the saved lines.
+function receiptForm() {
+  const f = $('form[data-form="receipt"]');
+  if (!f) return null;
+  const saved = S.receipts.find(r => r.id === f.dataset.id);
+  const lines = [...f.querySelectorAll('.rline')].map((li, i) => {
+    const old = saved.lines[Number(li.dataset.line)] || {};
+    const amountCents = toCents(li.querySelector('[name="amount"]').value);
+    return { code: old.code || 'ITEM', name: li.querySelector('[name="name"]').value, amountCents: Number.isNaN(amountCents) ? 0 : amountCents,
+      categoryId: li.querySelector('[name="cat"]').value || null, unsure: Boolean(old.unsure) && old.categoryId === (li.querySelector('[name="cat"]').value || null) };
+  });
+  const num = v => { const c = toCents(v); return Number.isNaN(c) ? 0 : c; };
+  return { id: saved.id, merchant: f.merchant.value, date: f.date.value || undefined, taxCents: num(f.tax.value), totalCents: num(f.total.value), lines };
+}
+// Save the editable copy with a change applied to its lines, then redraw.
+async function editReceipt(change, after) {
+  const body = receiptForm();
+  if (!body) { after?.(); return render(); }
+  body.lines = change(body.lines);
+  try { await api('/api/receipt/save', body); after?.(); } catch (e) { say(e.message, true); }
+  render();
+}
+
+// Phone photos are large: shrink to at most 1600px as JPEG before sending.
+async function uploadReceipt(file, txnId) {
+  busy = reader ? 'Reading your receipt…' : 'Saving your photo…'; renderBusy();
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = Object.assign(document.createElement('canvas'), { width: Math.round(bitmap.width * scale), height: Math.round(bitmap.height * scale) });
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
+    const res = await fetch(`/api/receipt/upload${txnId ? `?txnId=${encodeURIComponent(txnId)}` : ''}`, { method: 'POST', headers: { 'Content-Type': 'image/jpeg', 'X-SaveUp-CSRF': csrf }, body: blob });
+    const data = await res.json().catch(() => ({ error: 'Unexpected response.' }));
+    if (data.state) S = data.state;
+    if (!res.ok) throw new Error(data.error || 'Upload failed.');
+    shut(() => openReceipt(data.receiptId));
+  } catch (e) { say(e.message === 'The source image could not be decoded.' ? 'That file isn’t a photo SaveUp can read.' : e.message, true); }
+  finally { busy = ''; renderBusy(); }
+}
 
 async function openLink() {
   if (!window.Plaid) return say('Plaid Link is still loading. Try again in a moment.', true);
@@ -196,5 +261,5 @@ enablePullToRefresh($('#ptr'), {
 
 $('#app').innerHTML = '<div id="screen-root"></div><div id="nav-root"></div>';
 $('#overlay').innerHTML = '<div id="sheet-root"></div><div id="busy-root"></div><div id="toast-root"></div>';
-api('/api/state').then(d => { configured = d.configured; ai = d.ai; render({ firstBars: true, enter: true }); })
+api('/api/state').then(d => { configured = d.configured; ai = d.ai; reader = d.reader; samples = d.samples || []; render({ firstBars: true, enter: true }); })
   .catch(e => { $('#screen-root').innerHTML = `<p class="muted">${esc(e.message)}</p>`; });
