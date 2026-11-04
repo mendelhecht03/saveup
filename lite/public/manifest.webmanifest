@@ -1,0 +1,21 @@
+{
+  "name": "SaveUp",
+  "short_name": "SaveUp",
+  "description": "Weekly budgets, receipts and purchases you review on purpose.",
+  "id": "/",
+  "start_url": "/#/inbox",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#edf6ff",
+  "theme_color": "#edf6ff",
+  "icons": [
+    { "src": "icons/app/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/app/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Scan a receipt", "url": "/#/inbox?scan", "icons": [{ "src": "icons/app/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Budgets", "url": "/#/budgets", "icons": [{ "src": "icons/app/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

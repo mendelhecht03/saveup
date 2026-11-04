@@ -31,6 +31,6 @@ Mendel is an aspiring programmer without a deep understanding of the codebase. E
 ## Development and validation
 
 * Node.js 24 LTS. No dependencies or build step.
-* `npm start` serves the app at http://127.0.0.1:4193. `npm run phone` prints a private 8-hour link for Mendel's phone. `npm run check` runs syntax checks and tests. See `lite/README.md` for keys and data location.
+* `npm start` serves the app at http://127.0.0.1:4193. `npm run phone` prints a private 8-hour link for Mendel's phone; `npm run phone:app` gives a permanent private Tailscale address for the installed phone app. `npm run check` runs syntax checks and tests. See `lite/README.md` for keys and data location.
 * After changing calculations, run the checks and add a regression test for meaningful behavior. For interface changes, check 390px and 320px widths for overflow. Do not claim iPhone testing based only on desktop emulation.
 * Before committing, inspect the diff. Never force-push shared history.

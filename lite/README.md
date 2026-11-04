@@ -13,6 +13,14 @@ Data is a SQLite database (`node:sqlite`, built into Node 24) at `%LOCALAPPDATA%
 
 The rules shared by the server and the browser live in `public/logic/` (one file per topic: dates, transfers, suggestions, budgets, review, plans, sync), gathered by `public/logic.mjs`. `db.mjs` is storage and `ai.mjs` asks Claude for suggestions.
 
+## Phone app
+
+SaveUp installs on a phone like an app: its own icon, full screen, and a quick start even before the PC answers. It's a web app (manifest, service worker in `public/sw.js`, icons in `public/icons/app/`, redrawn with `public/icons/app/render-app-icons.ps1`), so there is no App Store step.
+
+For a permanent address, `npm run phone:app` uses Tailscale: it gives this PC a private HTTPS address on your tailnet (`https://<pc>.<tailnet>.ts.net`) that only devices signed into your Tailscale account can open. It also adds `SAVEUP_PUBLIC_HOST` to `.env.local` so the app accepts that address; restart `npm start` afterwards. Then on the phone: install Tailscale, sign in, open the address, and choose Add to Home Screen (iPhone, Safari) or Install app (Android, Chrome). `tailscale serve reset` stops sharing. Money data is never cached on the phone; it always comes live from the PC, so the PC must be on with `npm start` running.
+
+`npm run phone` still prints an 8-hour link for quick checks, but its address changes every time, so it isn't suitable for a home-screen app.
+
 ## Interface
 
 One design system, no framework or build step. `public/ui/tokens.css` defines every color, type size, radius, shadow, spacing and motion value. `public/ui/components.mjs` and `components.css` hold the reusable pieces (cards, buttons, pills, chips, budget bar, list rows, sheets, nav, fields, empty states, toasts). `public/screens/*.mjs` build each screen only from those pieces, as plain functions of the data. Line icons are only for controls; content uses 3D icons (`ui/icons.mjs`, emoji placeholders until the real images exist). More › Design system shows every component.

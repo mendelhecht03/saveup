@@ -17,13 +17,13 @@ const publicRoot = fileURLToPath(new URL('./public/', import.meta.url));
 const sampleRoot = fileURLToPath(new URL('./sandbox/receipts/', import.meta.url));
 const IMAGE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const MAX_IMAGE = 8 * 1024 * 1024;
-const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.ttf': 'font/ttf' };
+const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json' };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 // Never send access tokens or sync cursors to the browser.
 const publicState = s => ({ ...s, items: s.items.map(({ id, name, lastSync, error }) => ({ id, name, lastSync, error })) });
 
-export async function createApp({ client, store, categorize = null, readReceipt = null, receiptDir = null, csrf = randomBytes(24).toString('hex'), pollDelay = 2500 }) {
+export async function createApp({ client, store, categorize = null, readReceipt = null, receiptDir = null, publicHosts = [], csrf = randomBytes(24).toString('hex'), pollDelay = 2500 }) {
   const state = await store.load();
   let queue = Promise.resolve();
   const mutate = task => { const run = queue.then(task); queue = run.catch(() => {}); return run; };
@@ -153,9 +153,11 @@ export async function createApp({ client, store, categorize = null, readReceipt 
     res.setHeader('Referrer-Policy', 'no-referrer');
     try {
       const port = server.address().port;
+      // Loopback only, plus the private Tailscale address for the phone app (npm run phone:app).
       const local = [`127.0.0.1:${port}`, `localhost:${port}`];
-      if (!local.includes(req.headers.host)) throw new L.InputError('Use the local address.', 403);
-      if (req.headers.origin && !local.some(h => req.headers.origin === `http://${h}`)) throw new L.InputError('Cross-origin requests are blocked.', 403);
+      const origins = [...local.map(h => `http://${h}`), ...publicHosts.map(h => `https://${h}`)];
+      if (!local.includes(req.headers.host) && !publicHosts.includes(req.headers.host)) throw new L.InputError('Use the local address.', 403);
+      if (req.headers.origin && !origins.includes(req.headers.origin)) throw new L.InputError('Cross-origin requests are blocked.', 403);
       const url = new URL(req.url, 'http://local');
       if (req.method === 'GET' && url.pathname === '/api/state') return send(200, { state: publicState(state), csrf, configured: client.configured, ai: Boolean(categorize), reader: Boolean(readReceipt),
         samples: RECEIPTS.map(r => ({ id: r.id, merchant: r.merchant, totalCents: r.totalCents })) });
@@ -244,7 +246,8 @@ async function start() {
   const app = await createApp({ client: plaidClient({ clientId: process.env.PLAID_CLIENT_ID, secret: process.env.PLAID_SECRET }), store: sqliteStore(dbFile, { legacyFile }),
     categorize: claudeSuggester({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.SAVEUP_AI_MODEL || undefined }),
     readReceipt: claudeReceiptReader({ apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.SAVEUP_RECEIPT_MODEL || undefined })?.read || null,
-    receiptDir: path.join(dataDir, 'receipts') });
+    receiptDir: path.join(dataDir, 'receipts'),
+    publicHosts: String(process.env.SAVEUP_PUBLIC_HOST || '').split(',').map(h => h.trim().toLowerCase()).filter(h => /^[a-z0-9-]+(\.[a-z0-9-]+)*\.ts\.net$/.test(h)) });
   app.server.listen(port, '127.0.0.1', () => console.log(`SaveUp Lite (Plaid Sandbox) at http://127.0.0.1:${port}`));
   app.refreshStale();
   setInterval(app.refreshStale, 3 * 3600e3).unref();
