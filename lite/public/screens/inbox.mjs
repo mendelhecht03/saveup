@@ -6,6 +6,7 @@ import { pageHeader, listSection, button, iconButton, emptyState, link, esc } fr
 import { line } from '../ui/icons.mjs';
 import { txnRow, rangeLabel, byDate } from './shared.mjs';
 import { matchCard } from './receipt.mjs';
+import { weekDoneCard } from './week.mjs';
 
 export const QUEUE_SIZE = 5;
 
@@ -22,7 +23,8 @@ export function inboxScreen({ S, ui, today }) {
   const sub = week.length ? `<b>${open.length ? `${open.length} to review ${ui.weekOffset === 0 ? 'this week' : 'that week'}` : 'This week is reviewed'}</b>${reviewed} of ${week.length} reconciled. Swipe right to confirm a suggestion, left to scan its receipt, or tap to review.` : '';
   let body;
   if (!S.items.length && !S.txns.length) body = emptyState({ icon: 'bank', title: 'Connect a bank to fill your inbox', text: 'Your purchases arrive here each week for you to review.', action: button('Connect a bank', { act: 'go', data: { to: 'more/accounts' } }) });
-  else if (!open.length) body = emptyState({ icon: 'inbox-done', title: week.length ? 'Everything here is reviewed' : 'Nothing this week yet', text: older.length ? `${older.length} older purchases are still waiting.` : 'New purchases show up after the next sync.', action: older.length ? button('Review older purchases', { variant: 'secondary', act: 'jump', data: { date: older[0].date } }) : '' });
+  else if (!open.length && week.length) body = weekDoneCard(S, { start, end, week, older, today });
+  else if (!open.length) body = emptyState({ icon: 'inbox-done', title: 'Nothing this week yet', text: older.length ? `${older.length} older purchases are still waiting.` : 'New purchases show up after the next sync.', action: older.length ? button('Review older purchases', { variant: 'secondary', act: 'jump', data: { date: older[0].date } }) : '' });
   else body = listSection({ id: 'queue', cls: 'queue', rows: shown.map(t => txnRow(S, t, { queue: true })),
     footer: open.length > QUEUE_SIZE ? link(ui.showAll ? 'Show fewer' : `${open.length - QUEUE_SIZE} more waiting`, { act: 'show-all' }) : '' });
   // Possible links between a logged purchase and its bank charge come first: nothing links until you say so.

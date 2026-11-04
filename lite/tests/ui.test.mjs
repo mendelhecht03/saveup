@@ -110,3 +110,25 @@ test('receipt screens render from the component set and escape what was read', a
   assert.match(matchCard(s, m), /Looks like the same purchase[\s\S]*Link purchase[\s\S]*Not a match/);
   assert.equal(r.id, 'r1');
 });
+
+test('preview screens are clearly marked and the weekly review and what-if use real numbers', async () => {
+  const P = await import('../public/screens/preview.mjs');
+  const { weekDoneCard, whatIfResult } = await import('../public/screens/week.mjs');
+  const s = L.newState();
+  for (const html of [P.subscriptionsScreen({ ui: {} }), P.subscriptionsScreen({ ui: { subsTab: 'past' } }), P.iousScreen(), P.goalsScreen(), P.cashScreen(), P.returnsScreen()])
+    assert.match(html, /Preview[\s\S]*Sample data/, 'every preview says it is sample data');
+  assert.match(P.settingsScreen({ S: s }), /Accounts[\s\S]*Coming later/);
+
+  L.applySync(s, 'item1', { added: [plaidTxn('a', 30, { date: '2026-11-02' }), plaidTxn('b', 5, { date: '2026-10-20' })] });
+  L.confirmTxn(s, { id: 'a', categoryId: groceries });
+  const week = s.txns.filter(t => t.date >= '2026-11-01');
+  const card = weekDoneCard(s, { start: '2026-11-01', end: '2026-11-07', week, older: s.txns.filter(t => !t.reviewed), today });
+  assert.match(card, /1 \/ 1/);
+  assert.match(card, /1 older purchase still waiting/, 'never a false inbox zero');
+
+  // Recreation: $40 weekly limit, a $10–$30 plan. At $25 it leaves $15.
+  L.savePlan(s, { name: 'Guitar', lowCents: 1000, highCents: 3000, categoryId: 'preset-2' }, 'p1');
+  const out = whatIfResult(s, s.plans[0], 2500, today);
+  assert.match(out, /\$15\.00[\s\S]*left in Recreation/);
+  assert.match(whatIfResult(s, s.plans[0], 2500, today), /Before the purchase<\/dt><dd>\$40\.00/);
+});

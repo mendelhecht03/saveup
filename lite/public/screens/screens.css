@@ -132,6 +132,31 @@
 .match-name { font-weight: 800; overflow-wrap: anywhere; }
 .match-link { position: absolute; left: 50%; top: 50%; translate: -50% -50%; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--blue); color: var(--surface); box-shadow: var(--shadow-button); }
 
+/* preview screens */
+.hero-amount { display: block; font-size: var(--text-2xl); font-weight: 900; font-variant-numeric: tabular-nums; }
+.hero-amount.is-over, .is-over { color: var(--danger); }
+.center { text-align: center; }
+.tabs .segmented-track { background: var(--blue-soft); }
+.sub-head, .goal-head { display: flex; align-items: flex-start; gap: var(--s3); }
+.sub-head .grow, .goal-head .grow { display: grid; gap: 4px; min-width: 0; }
+.sub-name { font-size: var(--text-lg); font-weight: 900; }
+
+/* weekly review */
+.week-done { display: flex; align-items: center; gap: var(--s4); }
+.week-done-side { display: grid; gap: var(--s2); justify-items: start; }
+.ring { width: 120px; height: 120px; flex: none; }
+.ring-track { fill: none; stroke: var(--slate-soft); stroke-width: 12; }
+.ring-fill { fill: none; stroke: var(--mint); stroke-width: 12; stroke-linecap: round; }
+.ring-num { font: 900 22px var(--font); fill: var(--ink); text-anchor: middle; }
+.ring-label { font: 700 13px var(--font); fill: var(--ink-2); text-anchor: middle; }
+.overview-total { font-size: var(--text-lg); }
+.overview-total b:first-child { font-size: var(--text-xl); font-weight: 900; }
+.overview-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.overview-list li { display: flex; align-items: center; gap: var(--s2); }
+.overview-list li > b { min-width: 3.4em; text-align: right; color: var(--mint-ink); }
+.overview-list li > b.is-over { color: var(--danger); }
+.whatif-out { display: grid; gap: var(--s2); }
+
 @media (max-width: 359px) {
   .week-label { font-size: var(--text-xs); }
   .week-label svg { display: none; }
@@ -145,4 +170,6 @@
   .rline-remove { grid-column: 2; grid-row: 1; justify-self: end; }
   .rline-amount { grid-column: 1 / -1; justify-self: end; }
   .select-chip select { max-width: 8em; }
+  .week-done { flex-direction: column; align-items: flex-start; }
+  .overview-list .muted { display: none; }
 }

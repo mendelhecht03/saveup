@@ -9,18 +9,21 @@ import { budgetsScreen } from './screens/budgets.mjs';
 import { plannedScreen } from './screens/planned.mjs';
 import { moreScreen, accountsScreen, historyScreen, historyList, historyHits, labScreen } from './screens/more.mjs';
 import { galleryScreen } from './screens/gallery.mjs';
+import { subscriptionsScreen, iousScreen, goalsScreen, cashScreen, returnsScreen, settingsScreen } from './screens/preview.mjs';
+import { whatIfSheet, whatIfResult } from './screens/week.mjs';
 import { reviewSheet, manualSheet, categorySheet, planSheet, iconEmoji, PRIORITY_STOPS } from './screens/sheets.mjs';
 import { receiptStartSheet, receiptScreen, matchCard } from './screens/receipt.mjs';
 import { byDate } from './screens/shared.mjs';
 
 let S = null, csrf = '', configured = true, ai = false, reader = false, samples = [], busy = '', sheet = null, toastTimer = 0;
-const ui = { weekOffset: 0, showAll: false, openBudgets: new Set(), editPlans: false, search: '', receiptStep: 'items', receiptView: 'copy' };
+const ui = { weekOffset: 0, showAll: false, openBudgets: new Set(), editPlans: false, search: '', receiptStep: 'items', receiptView: 'copy', subsTab: 'active' };
 const $ = s => document.querySelector(s);
 const toCents = v => { const n = Number(String(v).replace(/[$,\s]/g, '')); return Number.isFinite(n) && String(v).trim() ? Math.round(n * 100) : NaN; };
 
 // ---- routing: #/inbox, #/budgets, #/planned, #/more, #/more/history ...
 // #/receipt/<id> is the one route with a parameter.
-const ROUTES = { inbox: inboxScreen, budgets: budgetsScreen, planned: plannedScreen, more: moreScreen, 'more/accounts': accountsScreen, 'more/history': historyScreen, 'more/lab': labScreen, 'more/gallery': galleryScreen, receipt: receiptScreen };
+const ROUTES = { inbox: inboxScreen, budgets: budgetsScreen, planned: plannedScreen, more: moreScreen, 'more/accounts': accountsScreen, 'more/history': historyScreen, 'more/lab': labScreen, 'more/gallery': galleryScreen, receipt: receiptScreen,
+  'more/subscriptions': subscriptionsScreen, 'more/ious': iousScreen, 'more/cash': cashScreen, 'more/returns': returnsScreen, 'more/settings': settingsScreen, 'planned/goals': goalsScreen };
 const route = () => { const r = location.hash.replace(/^#\/?/, ''); return ROUTES[r] || /^receipt\/[\w-]+$/.test(r) ? r : 'inbox'; };
 const screenFor = r => ROUTES[r.startsWith('receipt/') ? 'receipt' : r];
 const go = to => { if (route() !== to) location.hash = `/${to}`; else render(); };
@@ -73,6 +76,7 @@ function openSheet(next) {
     category: () => { const c = S.categories.find(x => x.id === sheet.id); return [categorySheet(S, c), c ? `${c.name} budget` : 'New budget']; },
     plan: () => { const p = S.plans.find(x => x.id === sheet.id); return [planSheet(S, p), p ? 'Edit plan' : 'Plan a purchase']; },
     scan: () => [receiptStartSheet(S, S.txns.find(x => x.id === sheet.id), { reader, samples }), 'Add receipt'],
+    whatif: () => { const p = S.plans.find(x => x.id === sheet.id); return [whatIfSheet(S, p, L.todayISO()), `What if the ${p.name.toLowerCase()} costs…`]; },
     match: () => { const m = L.openMatches(S).find(x => x.bank.id === sheet.id); return m ? [matchCard(S, m, { open: true }), 'Match purchase'] : [note('This match was already handled.'), 'Match purchase']; }
   };
   const [body, title] = views[sheet.type]();
@@ -118,6 +122,8 @@ document.addEventListener('click', e => {
     manual: () => openSheet({ type: 'manual' }),
     scan: () => openSheet({ type: 'scan', id: id || null }),
     'go-inbox': () => go('inbox'),
+    'go-planned': () => go('planned'),
+    whatif: () => openSheet({ type: 'whatif', id }),
     'receipt-open': () => shut(() => openReceipt(id)),
     'receipt-digital': () => act(async () => { const { receiptId } = await api('/api/receipt/digital', { sampleId: el.dataset.sample, txnId: el.dataset.txn || null }); shut(() => openReceipt(receiptId)); }),
     'receipt-manual': () => act(async () => { const { receiptId } = await api('/api/receipt/manual', { txnId: el.dataset.txn || null }); shut(() => openReceipt(receiptId)); }),
@@ -154,6 +160,7 @@ document.addEventListener('click', e => {
 
 document.addEventListener('change', e => {
   if (e.target.name === 'kind') { const cats = $('.sheet .cats'); if (cats) cats.hidden = e.target.value !== 'spending'; }
+  if (e.target.name === 'subs-tab') { ui.subsTab = e.target.value; render(); }
   if (e.target.name === 'receipt-view') { editReceipt(lines => lines, () => { ui.receiptView = e.target.value; }); }
   if (e.target.matches('[data-upload]') && e.target.files?.[0]) uploadReceipt(e.target.files[0], e.target.dataset.upload || null);
 });
@@ -161,6 +168,7 @@ document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'search') { ui.search = t.value; $('#history-list').innerHTML = historyList(S, historyHits(S, ui.search)); }
   if (t.type === 'range') t.style.setProperty('--fill', `${((t.value - t.min) * 100 / (t.max - t.min)).toFixed(2)}%`);
+  if (t.name === 'whatif') { const out = $('#whatif-out'); if (out) out.innerHTML = whatIfResult(S, S.plans.find(p => p.id === t.dataset.plan), Number(t.value), L.todayISO()); }
   const counter = t.name && document.querySelector(`[data-counter="${CSS.escape(t.name)}"]`);
   if (counter) counter.textContent = `${t.value.length}/${t.maxLength}`;
 });
