@@ -10,7 +10,7 @@ import { plaidClient, collectUpdates } from './plaid.mjs';
 import { BANK_NAME, publicTokenRequest } from './sandbox/banks.mjs';
 
 const publicRoot = fileURLToPath(new URL('./public/', import.meta.url));
-const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.svg': 'image/svg+xml' };
+const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.ttf': 'font/ttf' };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 // Plain JSON file outside the repo and OneDrive. Writes go to a temp file first

@@ -11,10 +11,6 @@ A cheap, minimal end-to-end version of SaveUp built from the Obsidian notes, so 
 
 Data is a JSON file at `%LOCALAPPDATA%\SaveUp\lite-sandbox\state.json` (override with `SAVEUP_LITE_DATA`). Access tokens are stored there and are never sent to the browser.
 
-## Test bank
-
-With the app running, `npm run seed` adds the **SaveUp Test Bank**: a Plaid custom Sandbox user with checking, savings and a credit card, and about 50 transactions dated relative to today. It covers repeat purchases (Kahan's $2.53), pending charges, refunds, Zelle/PayPal/Venmo and own-account transfers, subscriptions, an ATM withdrawal, payroll and charges that match the sample receipts. `npm run seed -- --fresh` removes earlier test banks first (banks added through Link stay). The scenarios live in `lite/sandbox/banks.mjs` and the receipts in `lite/sandbox/receipts.mjs`.
-
 ## Included
 
 - **Inbox:** the weekly (Sun–Sat) review bucket. Confirming is always deliberate. Suggestions come from previously confirmed merchant and amount pairs.

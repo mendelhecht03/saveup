@@ -1,0 +1,68 @@
+/* Layout for specific screens. Only token variables; shared pieces live in ui/components.css. */
+.section-label { font-size: var(--text-lg); font-weight: 900; }
+.chip-row { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s3); }
+
+/* inbox */
+.week-picker { display: flex; align-items: center; gap: 0; background: var(--surface); border-radius: var(--r-pill); box-shadow: var(--shadow-card); padding: 0 2px; }
+.week-picker .icon-btn { width: 36px; height: 40px; }
+.week-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: var(--text-sm); white-space: nowrap; color: var(--ink); }
+.week-label svg { color: var(--blue); }
+.queue .list-rows { min-height: 64px; }
+.queue .list-foot { padding-top: var(--s1); border-top: 1px solid var(--line); }
+.older { display: flex; align-items: center; gap: var(--s3); width: 100%; text-align: left; color: var(--ink-2); }
+.older b { display: block; color: var(--ink); font-weight: 800; }
+
+/* budgets */
+.budget { display: grid; gap: var(--s3); }
+.budget-head { display: flex; align-items: center; gap: var(--s3); width: 100%; text-align: left; min-height: var(--tap); }
+.budget-name { display: block; font-size: var(--text-lg); font-weight: 900; }
+.budget-head small { color: var(--ink-2); }
+.budget-left { display: grid; justify-items: end; text-align: right; color: var(--blue); }
+.budget-left b { font-size: var(--text-lg); font-weight: 900; white-space: nowrap; }
+.budget-left small { color: var(--blue); font-weight: 700; }
+.budget-left.is-over { color: var(--danger); }
+.budget-chev { color: var(--ink-3); transition: transform var(--t-med) var(--ease-spring); }
+.budget.is-open .budget-chev { transform: rotate(180deg); }
+.budget-line { color: var(--ink-2); font-size: var(--text-sm); }
+.budget .bar-caption { margin-top: calc(-1 * var(--s1)); }
+.budget-details { display: grid; gap: var(--s3); padding-top: var(--s2); border-top: 1px solid var(--line); animation: screen-in var(--t-med) var(--ease) both; }
+.budget-details .legend { margin: 0; }
+.budget-details .list { box-shadow: none; }
+
+/* planned */
+.plan { display: flex; align-items: center; gap: var(--s3); }
+.plan-text { display: grid; gap: 1px; text-align: left; }
+.plan-name { font-size: var(--text-lg); font-weight: 900; }
+.plan-range { font-weight: 700; }
+.plan-side { display: grid; justify-items: end; gap: var(--s2); text-align: right; }
+
+/* review sheet */
+.review-head { display: flex; align-items: flex-start; gap: var(--s3); }
+.review-name { display: block; font-size: var(--text-lg); font-weight: 900; }
+.review-amount { font-size: var(--text-xl); font-weight: 900; white-space: nowrap; }
+.review-head small { display: block; }
+
+/* budget sheet icon picker */
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: var(--s2); }
+.icon-pick label { position: relative; display: grid; place-items: center; min-height: 52px; border-radius: var(--r-md); cursor: pointer; }
+.icon-pick input { position: absolute; opacity: 0; }
+.icon-pick input:checked + .tile { box-shadow: 0 0 0 3px var(--blue); }
+.icon-pick input:focus-visible + .tile { outline: 3px solid color-mix(in srgb, var(--blue) 45%, transparent); }
+
+/* gallery */
+.icon-cell { display: grid; justify-items: center; gap: 4px; text-align: center; }
+.icon-cell small { font-size: 10px; color: var(--ink-2); word-break: break-word; }
+.toast-demo { display: grid; gap: var(--s2); justify-items: start; }
+.toast-demo .toast { position: static; transform: none; animation: none; }
+.card .icon-grid { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
+
+@media (max-width: 359px) {
+  .week-label { font-size: var(--text-xs); }
+  .week-label svg { display: none; }
+  .week-picker .icon-btn { width: 30px; }
+  .btn-row > .btn { font-size: var(--text-sm); gap: 4px; }
+  .two { grid-template-columns: 1fr; }
+  .plan { flex-wrap: wrap; }
+  .plan-side { width: 100%; grid-auto-flow: column; justify-content: space-between; align-items: center; }
+}
