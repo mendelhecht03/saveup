@@ -37,8 +37,8 @@ export function accountsScreen({ S, configured }) {
   return `${pageHeader({ back: 'More', backAct: 'go-more', title: 'Accounts', action: S.items.length ? button('Sync', { variant: 'secondary', size: 'sm', icon: 'refresh', act: 'sync' }) : '' })}
     ${!configured ? banner('Plaid keys are missing', 'Add Sandbox keys to lite/.env.local and restart the app.') : ''}
     ${banks || emptyState({ icon: 'bank', title: 'No banks connected', text: 'Connect a Plaid Sandbox bank to bring in test purchases.' })}
-    ${card(`<div class="stack">${button('Add instant test bank', { act: 'instant', full: true })}${button('Connect with Plaid Link', { variant: 'ghost', act: 'link', full: true })}
-      <p class="muted"><small>Link test login: <b>user_transactions_dynamic</b> with any password. Pull down on any screen to refresh. Banks also sync on their own at least once a day.</small></p></div>`)}`;
+    ${card(`<div class="stack">${button('Connect a bank with Plaid', { act: 'link', full: true, icon: 'plus' })}
+      <p class="muted"><small>Plaid Sandbox: every bank is pretend. In the Plaid window, pick any bank and log in as <b>saveup_test</b> (your test bank from Plaid’s Sandbox Studio) or <b>user_transactions_dynamic</b>, with any password. Pull down on any screen to refresh. Banks also sync on their own at least once a day.</small></p></div>`)}`;
 }
 
 export function historyHits(S, search) {
