@@ -30,15 +30,20 @@ With the app running, `npm run seed` adds the **SaveUp Test Bank**: a Plaid cust
 - **Receipts:** swipe a purchase left, tap Add receipt in its review, or tap Scan receipt to scan first. Take a photo, choose a file, use a sample digital receipt from the test bank, or split by hand. Claude reads the photo (needs `ANTHROPIC_API_KEY`; `SAVEUP_RECEIPT_MODEL` picks the model). Check the items on the editable copy (toggle to the original photo), rename cryptic codes once per store, then confirm how it splits across budgets. Tax is shared across items so the split matches the charge to the cent; a difference from the bank charge must be assigned before confirming. Photos are stored next to the database in `receipts/`.
 - **Hand-logged and scanned purchases:** card purchases count as pending until linked to their bank charge. When a charge arrives with the same amount within 7 days (or the same store and a close amount), the inbox shows "Looks like the same purchase" with **Link** / **Not a match**. Nothing links automatically; a different amount reopens review. Cash purchases count immediately.
 - **Plans:** planned purchases with a low/high range, essential tag and budget.
+- **Weekly review:** when a week is all reviewed, the inbox shows the review ring, any older purchases still waiting, and a budget overview with true percentages.
+- **What if it costs…:** on a planned purchase, slide the price to see what it leaves in its budget. Budget room only, with a reminder that it isn't a cash check.
+- **Preview screens** (drawn with sample data, clearly labelled, not connected yet): Subscriptions, IOUs, Cash withdrawals and Returns under More, Goals under Planned, and Settings.
 - **History:** search across all transactions. **Banks:** Plaid Link, an instant test bank, remove, manual sync, pull-to-refresh, and a stale-item sync every few hours.
 - **Test lab:** sends custom charges through `/sandbox/transactions/create`. Only works for the `user_transactions_dynamic` test user, and Plaid rate-limits it.
 
 ## Deliberately skipped
 
-IOUs, subscriptions, AI assistant/MCP, email receipts, returns, price tracking, visualizations, haptics, Production banks, sign-in/multi-user.
+Working IOUs, subscriptions, goals, cash splits and returns (drawn as previews only), AI assistant/MCP, email receipts, price tracking, visualizations, haptics, Production banks, sign-in/multi-user.
 
 ## Receipt reading
 
-- Sample receipt images live in `sandbox/receipts/*.png`, drawn from `sandbox/receipts.mjs`. Redraw them on Windows with `powershell -NoProfile -ExecutionPolicy Bypass -File sandboxeceiptsender-samples.ps1`.
+- Sample receipt images live in `sandbox/receipts/*.png`, drawn from `sandbox/receipts.mjs`. Redraw them on Windows with `powershell -NoProfile -ExecutionPolicy Bypass -File sandbox
+eceipts
+ender-samples.ps1`.
 - `receipts/reader.mjs` sends a receipt photo to Claude and returns item lines in integer cents with a suggested budget per line. Suggestions never confirm anything.
 - `npm run receipts:compare` scores Claude (and Tesseract, if installed) against the sample receipts: exact lines, correct total, and time. Set `RECEIPT_MODEL` to try another model.

@@ -2,6 +2,7 @@
 import { pageHeader, listSection, row, button, statusPill, emptyState, card, banner, searchField, textField, moneyField, selectField, segmented, esc, note, money } from '../ui/components.mjs';
 import { line } from '../ui/icons.mjs';
 import { txnRow, byDate, longDate, accountLabel } from './shared.mjs';
+import { PREVIEW_MENU } from './preview.mjs';
 
 const ago = iso => {
   if (!iso) return 'Not synced yet';
@@ -19,6 +20,8 @@ export function moreScreen({ S, ai }) {
   return `${pageHeader({ title: 'More' })}
     ${listSection({ title: 'Accounts', action: button('Manage', { variant: 'secondary', size: 'sm', act: 'go', data: { to: 'more/accounts' } }), rows: banks.length ? banks : [row({ icon: 'bank', title: 'Connect a bank', sub: 'Secure connection through Plaid', act: 'go', data: { to: 'more/accounts' } })] })}
     ${listSection({ rows: menu })}
+    ${listSection({ title: 'Coming soon', subtitle: 'Drawn with sample data, not connected yet', rows: PREVIEW_MENU.map(([title, sub, icon, to]) => row({ icon, title, sub, pillList: [statusPill('Preview', 'info')], act: 'go', data: { to } })) })}
+    ${listSection({ rows: [row({ icon: 'other', title: 'Settings', sub: 'Accounts, budgets, review week and more', act: 'go', data: { to: 'more/settings' } })] })}
     ${listSection({ rows: [row({ icon: 'other', title: 'AI suggestions', sub: ai ? 'Suggests a budget for new purchases. You still confirm each one.' : 'Off. Add ANTHROPIC_API_KEY to lite/.env.local and restart.',
       pillList: [ai ? statusPill('On', 'ok') : statusPill('Off', 'info')], chevron: Boolean(ai), act: ai ? 'ai-suggest' : null, tag: ai ? 'button' : 'div' })] })}
     ${note('Plaid Sandbox only: fictional banks, no real money.', { tone: 'plain' })}`;
