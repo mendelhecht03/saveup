@@ -3,7 +3,7 @@
 // screens/*.mjs; every piece of UI comes from ui/components.mjs.
 import * as L from './logic.mjs';
 import { bottomNav, sheet as sheetFrame, toast as toastView, esc, note, emptyState, button } from './ui/components.mjs';
-import { capture, play, closeSheet, enableSwipe, enablePullToRefresh } from './ui/motion.mjs';
+import { capture, play, closeSheet, floodOpen, floodClose, enableSwipe, enablePullToRefresh } from './ui/motion.mjs';
 import { inboxScreen } from './screens/inbox.mjs';
 import { budgetsScreen } from './screens/budgets.mjs';
 import { plannedScreen } from './screens/planned.mjs';
@@ -80,6 +80,12 @@ function fitComposer() {
   if (c && vv) { c.style.height = `${vv.height}px`; c.style.top = `${vv.offsetTop}px`; }
 }
 window.visualViewport?.addEventListener('resize', fitComposer);
+function pickBudget(form, open) {
+  form.classList.toggle('is-picking', open);
+  form.querySelector('.qa-picker').hidden = !open;
+  form.querySelector('.composer-fields').hidden = open;
+  form.querySelector('[data-act="qa-cat"]').setAttribute('aria-expanded', String(open));
+}
 
 // Floating Add purchase / Scan receipt, like Splitwise's Add expense: they shrink to
 // icons while you scroll down the list and grow their labels back when you scroll
@@ -104,6 +110,7 @@ function openSheet(next) {
     document.body.classList.add('is-locked');
     $('.composer [name="merchant"]').focus({ preventScroll: true });
     fitComposer();
+    floodOpen(sheet.from);
     return;
   }
   const t = sheet.type === 'txn' && S.txns.find(x => x.id === sheet.id);
@@ -123,7 +130,10 @@ function openSheet(next) {
 }
 function shut(after) {
   sheet = null;
-  closeSheet(() => { $('#sheet-root').innerHTML = ''; document.body.classList.remove('is-locked'); after?.(); });
+  const done = () => { $('#sheet-root').innerHTML = ''; document.body.classList.remove('is-locked'); after?.(); };
+  // Add purchase shrinks back into its button; the keyboard starts dropping right away.
+  if ($('.composer')) { document.activeElement?.blur(); return floodClose(done, () => $('#fab-root [data-act="manual"]')); }
+  closeSheet(done);
 }
 
 // Reconcile one purchase: close the sheet, slide its row away, and let the rest move up.
@@ -156,14 +166,14 @@ document.addEventListener('click', e => {
     jump: () => { ui.weekOffset = weeksBetween(el.dataset.date, L.todayISO()); go('inbox'); render(); },
     'show-all': () => { ui.showAll = !ui.showAll; render(); },
     open: () => openSheet({ type: 'txn', id }),
-    manual: () => openSheet({ type: 'manual' }),
+    manual: () => openSheet({ type: 'manual', from: el }),
     scan: () => openSheet({ type: 'scan', id: id || null }),
     'go-inbox': () => go('inbox'),
     'qa-paid': () => { const f = el.form; f.paid.value = f.paid.value === 'card' ? 'cash' : 'card'; refreshQuickAdd(S, f, L.todayISO()); },
-    'qa-cat': () => { const list = el.form.querySelector('.qa-cats'); list.hidden = !list.hidden; el.setAttribute('aria-expanded', String(!list.hidden)); },
-    'qa-pick': () => { const f = el.form; f.cat.value = el.dataset.id; f.dataset.picked = '1'; f.querySelector('.qa-cats').hidden = true; refreshQuickAdd(S, f, L.todayISO()); if (!f.amount.value) f.amount.focus(); },
-    'qa-note': () => { const n = el.form.querySelector('.composer-note'); n.hidden = false; n.querySelector('textarea').focus(); },
-    'qa-date': () => { const d = el.form.date; try { d.showPicker(); } catch { d.focus(); } },
+    // The budget list takes the fields' place and the keyboard drops so it all fits.
+    'qa-cat': () => { const f = el.form, open = !f.classList.contains('is-picking'); pickBudget(f, open); if (open) document.activeElement?.blur(); else (f.amount.value ? f.merchant : f.amount).focus(); },
+    'qa-pick': () => { const f = el.form; f.cat.value = el.dataset.id; f.dataset.picked = '1'; pickBudget(f, false); refreshQuickAdd(S, f, L.todayISO()); if (!f.amount.value) f.amount.focus(); },
+    'qa-note': () => { const f = el.form, n = f.querySelector('.composer-note'); pickBudget(f, false); n.hidden = false; n.querySelector('textarea').focus(); },
     reload: () => location.reload(),
     'go-planned': () => go('planned'),
     whatif: () => openSheet({ type: 'whatif', id }),

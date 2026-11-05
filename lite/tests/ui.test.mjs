@@ -145,5 +145,5 @@ test('Add purchase guesses the budget from the store, your own past choice first
   assert.equal(guessBudget(s, 'Kahans').name, 'Personal Care', 'your choice for that store wins');
   const html = quickAddSheet(s, today);
   assert.match(html, /Where\?[\s\S]*0\.00[\s\S]*Paid by[\s\S]*today[\s\S]*a budget/);
-  assert.match(html, /class="composer-save" disabled>Save/, 'Save waits until the purchase is complete');
+  assert.match(html, /class="composer-save" disabled aria-label="Save"/, 'Save waits until the purchase is complete');
 });

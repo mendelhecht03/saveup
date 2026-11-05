@@ -1,8 +1,8 @@
-// Add purchase, Splitwise style: a full-screen card that springs up with the
-// keyboard already on "Where?", two big lines (store and amount), one sentence of
-// tappable defaults ("Paid by card · today · in Groceries"), a small toolbar for
-// date, receipt and note, and Save at the top right. The budget guesses itself
-// from the store as you type, shown as a suggestion until you save.
+// Add purchase, Splitwise style: a full-screen card that slides up with the
+// keyboard already on "Where?", two big lines (store and amount) centered on the
+// screen, "Paid by card", and a toolbar resting on the keyboard with the date,
+// budget, receipt and note. Round Cancel and Save buttons sit at the top.
+// The budget guesses itself from the store as you type, shown as a suggestion until you save.
 import * as L from '../logic.mjs';
 import { iconTile, esc } from '../ui/components.mjs';
 import { line } from '../ui/icons.mjs';
@@ -26,33 +26,29 @@ const dayLabel = (iso, today) => iso === today ? 'today' : iso === L.addDays(tod
 
 export function quickAddSheet(S, today) {
   const cats = S.categories.map(c => `<button type="button" class="qa-cat" data-act="qa-pick" data-id="${esc(c.id)}">${iconTile(catArt(c), { emoji: c.emoji, size: 'sm', round: true })}<span>${esc(c.name)}</span></button>`).join('');
-  return `<form data-form="manual" class="composer" role="dialog" aria-modal="true" aria-label="Add purchase" novalidate>
-    <header class="composer-bar">
-      <button type="button" class="icon-btn" data-act="close" aria-label="Cancel">${line('close', { size: 22 })}</button>
+  return `<form data-form="manual" class="composer" role="dialog" aria-modal="true" aria-label="Add purchase" novalidate>    <header class="composer-bar">
+      <button type="button" class="composer-round" data-act="close" aria-label="Cancel">${line('close', { size: 22 })}</button>
       <b>Add purchase</b>
-      <button type="submit" class="composer-save" disabled>Save</button>
+      <button type="submit" class="composer-save" disabled aria-label="Save">${line('check', { size: 24 })}</button>
     </header>
     <div class="composer-body">
-      <label class="composer-line"><span class="composer-icon" data-qa-icon>${iconTile('store', { size: 'md' })}</span>
-        <input name="merchant" placeholder="Where?" autocomplete="off" autocapitalize="words" enterkeyhint="next" maxlength="100" aria-label="Where did you buy it?"></label>
-      <label class="composer-line composer-amount"><span class="composer-icon composer-dollar" aria-hidden="true">$</span>
-        <input name="amount" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done" aria-label="Amount"></label>
-      <p class="composer-sentence">Paid by
-        <button type="button" class="qa-chip" data-act="qa-paid" aria-label="Paid with card. Tap for cash."><span data-qa-paid>card</span></button>
-        ·
-        <label class="qa-chip qa-date"><span data-qa-day>${dayLabel(today, today)}</span><input type="date" name="date" value="${esc(today)}" max="${esc(today)}" aria-label="Date"></label>
-        · in
-        <button type="button" class="qa-chip is-empty" data-act="qa-cat" aria-expanded="false"><span data-qa-cat>a budget</span>${line('chevronDown', { size: 14 })}</button>
-      </p>
+      <div class="composer-fields">
+        <label class="composer-line"><span class="composer-icon" data-qa-icon>${iconTile('store', { size: 'md' })}</span>
+          <input name="merchant" placeholder="Where?" autocomplete="off" autocapitalize="words" enterkeyhint="next" maxlength="100" aria-label="Where did you buy it?"></label>
+        <label class="composer-line composer-amount"><span class="composer-icon composer-dollar" aria-hidden="true">$</span>
+          <input name="amount" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done" aria-label="Amount"></label>
+        <p class="composer-sentence">Paid by <button type="button" class="qa-chip" data-act="qa-paid" aria-label="Paid with card. Tap for cash."><span data-qa-paid>card</span></button></p>
+        <p class="composer-hint" data-qa-hint>Waits for the bank charge, then counts once.</p>
+        <label class="composer-note" hidden><textarea name="note" rows="2" maxlength="500" placeholder="Add a note"></textarea></label>
+      </div>
+      <div class="qa-picker" hidden><b class="qa-picker-title">Which budget?</b><div class="qa-cats">${cats}</div></div>
       <input type="hidden" name="paid" value="card"><input type="hidden" name="cat" value="">
-      <div class="qa-cats" hidden>${cats}</div>
-      <p class="composer-hint" data-qa-hint>Waits for the bank charge, then counts once.</p>
-      <label class="composer-note" hidden><textarea name="note" rows="2" maxlength="500" placeholder="Add a note"></textarea></label>
     </div>
     <footer class="composer-tools">
-      <button type="button" class="qa-tool" data-act="qa-date">${line('calendar', { size: 20 })}<span>Date</span></button>
-      <button type="button" class="qa-tool" data-act="scan">${line('camera', { size: 20 })}<span>Scan instead</span></button>
-      <button type="button" class="qa-tool" data-act="qa-note">${line('pencil', { size: 20 })}<span>Note</span></button>
+      <label class="qa-tool qa-date">${line('calendar', { size: 22 })}<span data-qa-day>${dayLabel(today, today)}</span><input type="date" name="date" value="${esc(today)}" max="${esc(today)}" aria-label="Date"></label>
+      <button type="button" class="qa-tool qa-budget is-empty" data-act="qa-cat" aria-expanded="false"><span class="qa-budget-icon" data-qa-icon-sm>${line('budgets', { size: 22 })}</span><span data-qa-cat>Pick a budget</span></button>
+      <button type="button" class="qa-icon-tool" data-act="scan" aria-label="Scan a receipt instead">${line('camera', { size: 24 })}</button>
+      <button type="button" class="qa-icon-tool" data-act="qa-note" aria-label="Add a note">${line('pencil', { size: 24 })}</button>
     </footer>
   </form>`;
 }
@@ -69,10 +65,11 @@ export function refreshQuickAdd(S, form, today) {
   }
   const c = S.categories.find(x => x.id === form.cat.value);
   const chip = form.querySelector('[data-act="qa-cat"]');
-  form.querySelector('[data-qa-cat]').textContent = c ? c.name : 'a budget';
+  form.querySelector('[data-qa-cat]').textContent = c ? c.name : 'Pick a budget';
   chip.classList.toggle('is-empty', !c);
   chip.classList.toggle('is-guess', Boolean(c) && !picked);
   form.querySelector('[data-qa-icon]').innerHTML = iconTile(c ? catArt(c) : 'store', { emoji: c?.emoji, size: 'md' });
+  form.querySelector('[data-qa-icon-sm]').innerHTML = c ? iconTile(catArt(c), { emoji: c.emoji, size: 'sm', round: true }) : line('budgets', { size: 22 });
   form.querySelector('[data-qa-day]').textContent = form.date.value ? dayLabel(form.date.value, today) : 'today';
   const cash = form.paid.value === 'cash';
   form.querySelector('[data-qa-paid]').textContent = cash ? 'cash' : 'card';

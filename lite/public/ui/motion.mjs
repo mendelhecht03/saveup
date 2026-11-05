@@ -53,9 +53,55 @@ export function countUp(el, from, to, { duration = 600 } = {}) {
   requestAnimationFrame(step);
 }
 
+// ---- Add purchase opens and closes like Splitwise's Add expense (timed from a
+// screen recording): the button becomes a blue circle that grows to fill the screen
+// in ~220ms, stays while the keyboard rises, then fades to show the form. Closing
+// floods the screen blue, then shrinks the circle back into the button.
+// The blue lives on its own layer, much taller than the screen, so neither the
+// keyboard resizing the form nor iOS scrolling the page can uncover anything.
+const flood = () => {
+  const f = document.createElement('div');
+  f.className = 'flood';
+  f.setAttribute('aria-hidden', 'true');
+  // Sized in px from the same innerHeight circleAt uses, so the circle lands on the button.
+  f.style.top = `${-innerHeight}px`;
+  f.style.height = `${3 * innerHeight}px`;
+  document.body.append(f);
+  return f;
+};
+// Circle geometry in the layer's own coordinates (the layer starts one screen above the top).
+function circleAt(el) {
+  const W = innerWidth, H = innerHeight, b = el?.getBoundingClientRect?.();
+  const ok = b && b.width > 0;
+  const x = ok ? b.left + b.width / 2 : W - 80, y = (ok ? b.top + b.height / 2 : H - 120) + H;
+  return { small: `circle(${ok ? b.height / 2 : 27}px at ${x}px ${y}px)`, big: `circle(${Math.ceil(Math.hypot(W, 2 * H))}px at ${x}px ${y}px)` };
+}
+export function floodOpen(from) {
+  if (reduced()) return;
+  const f = flood(), c = circleAt(from);
+  from?.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 90, fill: 'forwards' });
+  f.animate([{ clipPath: c.small }, { clipPath: c.big }], { duration: 220, easing: 'cubic-bezier(0.5, 0, 0.9, 0.6)', fill: 'forwards' });
+  f.animate([{ opacity: 1 }, { opacity: 0 }], { delay: 330, duration: 120, easing: 'ease-out', fill: 'forwards' }).finished.then(() => f.remove(), () => f.remove());
+}
+// swap() removes the form while the screen is blue; target() finds the button to shrink into.
+export function floodClose(swap, target) {
+  if (reduced()) return swap();
+  const f = flood();
+  f.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 110, easing: 'ease-in', fill: 'forwards' }).finished.then(() => {
+    swap();
+    // Measured right after the swap (the button may have been redrawn) and with no
+    // wait for a frame, so the button always comes back even if frames are throttled.
+    const btn = target(), c = circleAt(btn);
+    btn?.getAnimations?.().forEach(a => a.cancel());
+    f.animate([{ clipPath: c.big }, { clipPath: c.small }], { duration: 240, easing: 'cubic-bezier(0.2, 0.6, 0.4, 1)', fill: 'forwards' }).finished
+      .then(() => f.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 90, fill: 'forwards' }).finished)
+      .finally(() => f.remove());
+  }, () => { swap(); f.remove(); });
+}
+
 // ---- sheets: CSS springs them open; closing plays the reverse before removal.
 export function closeSheet(done) {
-  const parts = document.querySelectorAll('.sheet, .sheet-backdrop, .composer');
+  const parts = document.querySelectorAll('.sheet, .sheet-backdrop');
   if (!parts.length || reduced()) return done();
   parts.forEach(p => p.classList.add('is-closing'));
   setTimeout(done, 240);
