@@ -37,6 +37,21 @@ test('a budget reserves the high end of its plans and shows what is left after t
   assert.match(budgetsScreen({ S: s, ui: ui(), today }), /planned/);
 });
 
+test('budgets are grouped by period, and an over budget shows red with its true percent', () => {
+  const s = L.newState();
+  s.categories = [
+    { id: 'w', name: 'Groceries', emoji: '🛒', limitCents: 5000, interval: 'weekly' },
+    { id: 'm', name: 'Dining out', emoji: '🍽️', limitCents: 1000, interval: 'monthly' }
+  ];
+  L.applySync(s, 'item1', { added: [plaidTxn('t1', 25)] });
+  L.confirmTxn(s, { id: 't1', categoryId: 'm' });
+  const html = budgetsScreen({ S: s, ui: ui(), today });
+  assert.ok(html.indexOf('This week') < html.indexOf('Groceries') && html.indexOf('Groceries') < html.indexOf('This month'), 'weekly group comes first with its budget');
+  assert.match(html, /pill-danger/);
+  assert.match(html, /250% of \$10/);
+  assert.doesNotMatch(html, /This year/, 'empty groups are hidden');
+});
+
 test('inbox shows about five rows, offers a swipe only when there is a suggestion, and never confirms by itself', () => {
   const s = L.newState();
   L.applySync(s, 'item1', { added: [plaidTxn('k1', 2.53, { date: '2026-10-20' })] });
