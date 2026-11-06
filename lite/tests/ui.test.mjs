@@ -4,7 +4,7 @@ import * as L from '../public/logic.mjs';
 import * as C from '../public/ui/components.mjs';
 import { ART, artFor } from '../public/ui/icons.mjs';
 import { inboxScreen, QUEUE_SIZE } from '../public/screens/inbox.mjs';
-import { budgetsScreen, budgetView } from '../public/screens/budgets.mjs';
+import { budgetsScreen, budgetView, leftTone, statusLine } from '../public/screens/budgets.mjs';
 import { plannedScreen } from '../public/screens/planned.mjs';
 import { moreScreen, accountsScreen, historyScreen, historyHits, labScreen } from '../public/screens/more.mjs';
 import { galleryScreen } from '../public/screens/gallery.mjs';
@@ -37,19 +37,40 @@ test('a budget reserves the high end of its plans and shows what is left after t
   assert.match(budgetsScreen({ S: s, ui: ui(), today }), /planned/);
 });
 
-test('budgets are grouped by period, and an over budget shows red with its true percent', () => {
+test('budgets sit in Needs/Wants groups with a total left, and a closed group hides its rows', () => {
   const s = L.newState();
   s.categories = [
-    { id: 'w', name: 'Groceries', emoji: '🛒', limitCents: 5000, interval: 'weekly' },
-    { id: 'm', name: 'Dining out', emoji: '🍽️', limitCents: 1000, interval: 'monthly' }
+    { id: 'w', name: 'Fun', emoji: '🎡', limitCents: 5000, interval: 'weekly', group: 'Wants' },
+    { id: 'n', name: 'Rent', emoji: '🏠', limitCents: 1000, interval: 'monthly', group: 'Needs' },
+    { id: 'x', name: 'Misc', emoji: '📦', limitCents: 500, interval: 'monthly', group: '' }
   ];
   L.applySync(s, 'item1', { added: [plaidTxn('t1', 25)] });
-  L.confirmTxn(s, { id: 't1', categoryId: 'm' });
+  L.confirmTxn(s, { id: 't1', categoryId: 'n' });
   const html = budgetsScreen({ S: s, ui: ui(), today });
-  assert.ok(html.indexOf('This week') < html.indexOf('Groceries') && html.indexOf('Groceries') < html.indexOf('This month'), 'weekly group comes first with its budget');
-  assert.match(html, /pill-danger/);
-  assert.match(html, /250% of \$10/);
-  assert.doesNotMatch(html, /This year/, 'empty groups are hidden');
+  const at = k => html.indexOf(k);
+  assert.ok(at('>Needs<') < at('Rent') && at('Rent') < at('>Wants<') && at('>Wants<') < at('>Other<'), 'Needs, then Wants, then Other');
+  assert.ok(html.includes('<b>$40</b><span>Left to spend'), 'total left is $50 + $5 - $15');
+  assert.match(html, /tone-over/);
+  assert.ok(html.includes('Overspent $15 · 250% of $10'), 'the true percent, not capped');
+  const closed = budgetsScreen({ S: s, ui: { ...ui(), closedGroups: new Set(['Wants']) }, today });
+  assert.doesNotMatch(closed, /Fun/, 'a closed group hides its budgets');
+});
+
+test('a budget row says where it stands in one short line', () => {
+  const v = (used, limit, extra = {}) => ({ limitCents: limit, used, left: limit - used, interval: 'weekly', pending: 0, planned: 0, ...extra });
+  assert.deepEqual([leftTone(v(0, 100)), leftTone(v(95, 100)), leftTone(v(100, 100)), leftTone(v(120, 100))], ['ok', 'low', 'empty', 'over']);
+  assert.equal(statusLine(v(0, 5000)), '$50 a week · nothing spent yet');
+  assert.equal(statusLine(v(1200, 5000, { pending: 300 })), '24% of $50 a week · $3 pending');
+  assert.equal(statusLine(v(5000, 5000)), 'Fully spent · $50 a week');
+});
+
+test('old budgets get a starting group; a budget can be moved to another group', () => {
+  const s = L.newState();
+  delete s.categories[0].group;
+  L.upgradeState(s);
+  assert.equal(s.categories[0].group, 'Needs', 'Groceries starts in Needs');
+  L.saveCategory(s, { ...s.categories[0], group: '  Food ' });
+  assert.equal(s.categories[0].group, 'Food');
 });
 
 test('inbox shows about five rows, offers a swipe only when there is a suggestion, and never confirms by itself', () => {

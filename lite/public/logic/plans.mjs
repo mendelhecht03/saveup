@@ -9,6 +9,7 @@ export function saveCategory(state, input, newId) {
   };
   if (!INTERVALS.includes(input.interval)) throw new InputError('Pick weekly, monthly or yearly.');
   fields.interval = input.interval;
+  fields.group = text(input.group, 'Group', 30, false);
   const existing = input.id && state.categories.find(c => c.id === input.id);
   if (input.id && !existing) throw new InputError('Budget not found.', 404);
   if (existing) return Object.assign(existing, fields);
