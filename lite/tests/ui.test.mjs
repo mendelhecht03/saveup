@@ -9,7 +9,8 @@ import { plannedScreen } from '../public/screens/planned.mjs';
 import { moreScreen, accountsScreen, historyScreen, historyHits, labScreen } from '../public/screens/more.mjs';
 import { galleryScreen } from '../public/screens/gallery.mjs';
 import { txnRow } from '../public/screens/shared.mjs';
-import { reviewSheet, manualSheet, categorySheet, planSheet } from '../public/screens/sheets.mjs';
+import { reviewSheet, categorySheet, planSheet } from '../public/screens/sheets.mjs';
+import { quickAddSheet, guessBudget } from '../public/screens/quickadd.mjs';
 
 const today = '2026-11-04';
 const plaidTxn = (id, amount, extra = {}) => ({ transaction_id: id, account_id: 'a1', name: 'Kahans', amount, date: '2026-11-03', pending: false, ...extra });
@@ -34,6 +35,21 @@ test('a budget reserves the high end of its plans and shows what is left after t
   const rec = budgetView(L.budgetSummary(s, today).find(b => b.id === 'preset-2'));
   assert.deepEqual([rec.planned, rec.left], [30000, rec.limitCents - 10000 - 30000]);
   assert.match(budgetsScreen({ S: s, ui: ui(), today }), /planned/);
+});
+
+test('budgets are grouped by period, and an over budget shows red with its true percent', () => {
+  const s = L.newState();
+  s.categories = [
+    { id: 'w', name: 'Groceries', emoji: '🛒', limitCents: 5000, interval: 'weekly' },
+    { id: 'm', name: 'Dining out', emoji: '🍽️', limitCents: 1000, interval: 'monthly' }
+  ];
+  L.applySync(s, 'item1', { added: [plaidTxn('t1', 25)] });
+  L.confirmTxn(s, { id: 't1', categoryId: 'm' });
+  const html = budgetsScreen({ S: s, ui: ui(), today });
+  assert.ok(html.indexOf('This week') < html.indexOf('Groceries') && html.indexOf('Groceries') < html.indexOf('This month'), 'weekly group comes first with its budget');
+  assert.match(html, /pill-danger/);
+  assert.match(html, /250% of \$10/);
+  assert.doesNotMatch(html, /This year/, 'empty groups are hidden');
 });
 
 test('inbox shows about five rows, offers a swipe only when there is a suggestion, and never confirms by itself', () => {
@@ -79,7 +95,7 @@ test('every screen and sheet renders from the component set, and user text is es
   s.items.push({ id: 'item1', name: 'Test bank', lastSync: null, error: null });
   const ctx = { S: s, ui: ui(), today, configured: true };
   const all = [inboxScreen, budgetsScreen, plannedScreen, moreScreen, accountsScreen, historyScreen, labScreen, galleryScreen].map(f => f(ctx)).join('')
-    + reviewSheet(s, s.txns[0]) + manualSheet(s, today) + categorySheet(s) + planSheet(s);
+    + reviewSheet(s, s.txns[0]) + quickAddSheet(s, today) + categorySheet(s) + planSheet(s);
   assert.doesNotMatch(all, /<img src=x/);
   assert.equal(historyHits(s, 'img').length, 1);
   assert.equal(historyHits(s, 'nothing like this').length, 0);
@@ -131,4 +147,18 @@ test('preview screens are clearly marked and the weekly review and what-if use r
   const out = whatIfResult(s, s.plans[0], 2500, today);
   assert.match(out, /\$15\.00[\s\S]*left in Recreation/);
   assert.match(whatIfResult(s, s.plans[0], 2500, today), /Before the purchase<\/dt><dd>\$40\.00/);
+});
+
+test('Add purchase guesses the budget from the store, your own past choice first', () => {
+  const s = L.newState();
+  assert.equal(guessBudget(s, ''), null);
+  assert.equal(guessBudget(s, 'Zzz Place'), null, 'unsure means no guess');
+  assert.equal(guessBudget(s, 'Corner Groceries').name, 'Groceries', 'a word shared with a budget name');
+  assert.equal(guessBudget(s, 'Trip Travel Agency').name, 'Travel');
+  L.applySync(s, 'item1', { added: [plaidTxn('k1', 2.53, { name: 'Kahans' })] });
+  L.confirmTxn(s, { id: 'k1', categoryId: 'preset-4' });
+  assert.equal(guessBudget(s, 'Kahans').name, 'Personal Care', 'your choice for that store wins');
+  const html = quickAddSheet(s, today);
+  assert.match(html, /Where\?[\s\S]*0\.00[\s\S]*Paid by[\s\S]*today[\s\S]*a budget/);
+  assert.match(html, /class="composer-save" disabled aria-label="Save"/, 'Save waits until the purchase is complete');
 });

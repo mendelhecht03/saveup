@@ -73,5 +73,8 @@ export function txnRow(S, t, { queue = false } = {}) {
   else if (sug?.transferKind === 'income') chip = categoryChip('Income', 'green', { suggested: true });
   else chip = statusPill(t.amountChanged ? 'Amount changed' : 'Needs review', t.amountChanged ? 'warn' : 'info');
   const canSwipe = sug && (sc || sug.transferKind === 'own' || sug.transferKind === 'income');
-  return row({ icon, emoji, title: t.name, sub: `${shortDate(t.date)} · ${bankWord(t)}`, chip, amount: signed(t), amountTone: t.amountCents < 0 ? 'in' : null, chevron: false, act: 'open', data, swipe: { confirm: canSwipe ? `Confirm ${sc ? sc.name : sug.transferKind === 'own' ? 'my accounts' : 'income'}` : null, scan: t.amountCents > 0 && !t.transfer ? 'Scan receipt' : null } });
+  const lead = `${t.amountCents < 0 ? 'Received' : t.transfer ? 'Sent' : 'Spent'} ${money(Math.abs(t.amountCents))}`;
+  // The tile's badge is the bank status at a glance: logged by hand, pending or posted.
+  const badge = t.source === 'manual' ? 'pencil' : t.pending ? 'clock' : 'check';
+  return row({ icon, emoji, title: t.name, sub: `${shortDate(t.date)} · ${bankWord(t)}`, chip, amountTone: t.amountCents < 0 ? 'in' : 'out', activity: { lead, badge, badgeTone: t.source === 'manual' ? 'blue' : t.pending ? 'amber' : 'mint' }, act: 'open', data, swipe: { confirm: canSwipe ? `Confirm ${sc ? sc.name : sug.transferKind === 'own' ? 'my accounts' : 'income'}` : null, scan: t.amountCents > 0 && !t.transfer ? 'Scan receipt' : null } });
 }

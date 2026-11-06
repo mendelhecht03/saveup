@@ -33,5 +33,5 @@ export function inboxScreen({ S, ui, today }) {
     ${matches}
     ${body}
     ${open.length && older.length ? `<button type="button" class="card older" data-act="jump" data-date="${esc(older[0].date)}">${line('clock')}<span class="grow"><b>${older.length} older purchase${older.length === 1 ? '' : 's'}</b><small>From before ${esc(rangeLabel(start, end).split(' – ')[0])}</small></span>${line('chevronRight', { size: 18 })}</button>` : ''}
-    <div class="btn-row">${button('Add purchase', { icon: 'plus', act: 'manual' })}${button('Scan receipt', { icon: 'camera', variant: 'ghost', act: 'scan' })}</div>`;
+    <div class="fab-row" id="fab">${button('Scan receipt', { icon: 'camera', variant: 'secondary', act: 'scan', aria: 'Scan receipt' })}${button('Add purchase', { icon: 'plus', act: 'manual', aria: 'Add purchase' })}</div>`;
 }
