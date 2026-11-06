@@ -167,7 +167,10 @@ document.addEventListener('click', e => {
     'show-all': () => { ui.showAll = !ui.showAll; render(); },
     open: () => openSheet({ type: 'txn', id }),
     manual: () => openSheet({ type: 'manual', from: el }),
-    scan: () => openSheet({ type: 'scan', id: id || null }),
+    // Camera buttons go straight to the camera; "Add receipt" keeps the sheet with
+    // the other ways in (choose a file, a sample receipt, or split by hand).
+    scan: () => takeReceiptPhoto(id || null),
+    'scan-options': () => openSheet({ type: 'scan', id: id || null }),
     'go-inbox': () => go('inbox'),
     'qa-paid': () => { const f = el.form; f.paid.value = f.paid.value === 'card' ? 'cash' : 'card'; refreshQuickAdd(S, f, L.todayISO()); },
     // The budget list takes the fields' place and the keyboard drops so it all fits.
@@ -279,6 +282,17 @@ async function editReceipt(change, after) {
   render();
 }
 
+// Opens the phone's camera at once (a file picker on a computer). It must run
+// inside the tap or swipe that asked for it, or the browser blocks it.
+function takeReceiptPhoto(txnId) {
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/*', className: 'visually-hidden' });
+  input.setAttribute('capture', 'environment');
+  input.addEventListener('change', () => { if (input.files?.[0]) uploadReceipt(input.files[0], txnId); input.remove(); });
+  input.addEventListener('cancel', () => input.remove());
+  document.body.append(input);
+  input.click();
+}
+
 // Phone photos are large: shrink to at most 1600px as JPEG before sending.
 async function uploadReceipt(file, txnId) {
   busy = reader ? 'Reading your receipt…' : 'Saving your photo…'; renderBusy();
@@ -318,7 +332,7 @@ enableSwipe(document, {
   },
   onScan: row => {
     if (!row.closest('#queue')) return say('Sample row only');
-    openSheet({ type: 'scan', id: row.dataset.id });
+    takeReceiptPhoto(row.dataset.id);
   }
 });
 enablePullToRefresh($('#ptr'), {
