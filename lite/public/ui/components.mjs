@@ -66,18 +66,23 @@ export const card = (body, { cls: extra, tag = 'section', data, act } = {}) => `
 // A list row: icon, title, subtitle, optional chip, amount, pills and chevron.
 // `swipe` marks a row that can be swiped: right to confirm its suggestion
 // (`swipe.confirm`, when there is one), left to scan a receipt (`swipe.scan`).
-export function row({ icon, emoji, title, sub, amount, amountTone, chip, pillList = [], chevron = true, act, data, swipe, tag = 'button', extra }) {
+// `activity` lays a row out like Splitwise's activity feed: a square tile with a
+// small badge, then title, a colored amount line, the chip and a muted date.
+export function row({ icon, emoji, title, sub, amount, amountTone, chip, pillList = [], chevron = true, act, data, swipe, tag = 'button', extra, activity }) {
   // The outer row carries every data attribute; the button only needs the action and id.
   const open = tag === 'button' ? `<button type="button" class="row-main"${act ? ` data-act="${esc(act)}"` : ''}${attrs({ id: data?.id })}>` : '<div class="row-main">';
   const close = tag === 'button' ? '</button>' : '</div>';
-  const body = `${open}${icon !== null ? iconTile(icon, { emoji, size: 'sm', round: true }) : ''}
+  const body = activity ? `${open}<span class="row-art">${iconTile(icon, { emoji, size: 'md' })}${activity.badge ? `<span class="${cls('row-badge', activity.badgeTone && `tone-${activity.badgeTone}`)}">${line(activity.badge, { size: 13 })}</span>` : ''}</span>
+    <span class="row-text"><b class="row-title">${esc(title)}</b><span class="${cls('row-lead', amountTone && `amount-${amountTone}`)}">${esc(activity.lead)}</span>${chip ? `<span class="row-chip">${chip}</span>` : ''}${sub ? `<small class="row-sub">${esc(sub)}</small>` : ''}</span>${close}`
+  : `${open}${icon !== null ? iconTile(icon, { emoji, size: 'sm', round: true }) : ''}
     <span class="row-text"><b class="row-title">${esc(title)}</b>${sub ? `<small class="row-sub">${esc(sub)}</small>` : ''}${pills(pillList)}</span>
     ${chip ? `<span class="row-chip">${chip}</span>` : ''}
     ${amount != null ? `<span class="${cls('row-amount', amountTone && `amount-${amountTone}`)}">${esc(amount)}</span>` : ''}
     ${extra || ''}${chevron ? `<span class="row-chev">${line('chevronRight', { size: 18 })}</span>` : ''}${close}`;
-  if (!swipe) return `<div class="row"${attrs(data)}>${body}</div>`;
+  const rowCls = cls('row', activity && 'row-activity');
+  if (!swipe) return `<div class="${rowCls}"${attrs(data)}>${body}</div>`;
   const under = (side, icon, label) => label ? `<div class="swipe-under swipe-${side}" aria-hidden="true">${line(icon, { size: 20 })}<span>${esc(label)}</span></div>` : '';
-  return `<div class="row row-swipe"${attrs(data)}${swipe.confirm ? ' data-swipe-confirm' : ''}${swipe.scan ? ' data-swipe-scan' : ''}>${under('confirm', 'check', swipe.confirm)}${under('scan', 'camera', swipe.scan)}${body}</div>`;
+  return `<div class="${rowCls} row-swipe"${attrs(data)}${swipe.confirm ? ' data-swipe-confirm' : ''}${swipe.scan ? ' data-swipe-scan' : ''}>${under('confirm', 'check', swipe.confirm)}${under('scan', 'camera', swipe.scan)}${body}</div>`;
 }
 
 export function listSection({ title, subtitle, icon, iconTone, action, rows = [], footer, id, cls: extra }) {

@@ -3,7 +3,7 @@
 // screens/*.mjs; every piece of UI comes from ui/components.mjs.
 import * as L from './logic.mjs';
 import { bottomNav, sheet as sheetFrame, toast as toastView, esc, note, emptyState, button } from './ui/components.mjs';
-import { capture, play, closeSheet, enableSwipe, enablePullToRefresh } from './ui/motion.mjs';
+import { capture, play, closeSheet, floodOpen, floodClose, enableSwipe, enablePullToRefresh } from './ui/motion.mjs';
 import { inboxScreen } from './screens/inbox.mjs';
 import { budgetsScreen } from './screens/budgets.mjs';
 import { plannedScreen } from './screens/planned.mjs';
@@ -11,8 +11,9 @@ import { moreScreen, accountsScreen, historyScreen, historyList, historyHits, la
 import { galleryScreen } from './screens/gallery.mjs';
 import { subscriptionsScreen, iousScreen, goalsScreen, cashScreen, returnsScreen, settingsScreen } from './screens/preview.mjs';
 import { whatIfSheet, whatIfResult } from './screens/week.mjs';
-import { reviewSheet, manualSheet, categorySheet, planSheet, iconEmoji, PRIORITY_STOPS } from './screens/sheets.mjs';
+import { reviewSheet, categorySheet, planSheet, iconEmoji, PRIORITY_STOPS } from './screens/sheets.mjs';
 import { receiptStartSheet, receiptScreen, matchCard } from './screens/receipt.mjs';
+import { quickAddSheet, refreshQuickAdd } from './screens/quickadd.mjs';
 import { byDate } from './screens/shared.mjs';
 
 let S = null, csrf = '', configured = true, ai = false, reader = false, samples = [], busy = '', sheet = null, toastTimer = 0;
@@ -64,17 +65,58 @@ function render({ enter = false, firstBars = false } = {}) {
   const r = route(), tab = r.startsWith('receipt/') ? 'inbox' : r.split('/')[0];
   const focused = document.activeElement?.id === 'search';
   $('#screen-root').innerHTML = `<main class="screen${enter ? ' screen-enter' : ''}">${screenFor(r)({ S, ui, today: L.todayISO(), configured, ai, route: r })}</main>`;
+  // Floating buttons live outside the page, so its slide-in can't move them.
+  const fab = $('#screen-root #fab'), wasCollapsed = $('#fab-root #fab')?.classList.contains('is-collapsed');
+  if (fab) fab.classList.toggle('is-collapsed', Boolean(wasCollapsed) && scrollY >= 40);
+  $('#fab-root').replaceChildren(...(fab ? [fab] : []));
   $('#nav-root').innerHTML = bottomNav(tab, { badge: weekBadge() });
   if (focused) { const s = $('#search'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
   play(prev, document, { firstBars: firstBars || enter });
 }
+// Keeps the full-screen Add purchase card the size of the visible screen, so its
+// toolbar stays just above the iPhone keyboard instead of hiding behind it.
+function fitComposer() {
+  const c = $('.composer'), vv = window.visualViewport;
+  if (c && vv) { c.style.height = `${vv.height}px`; c.style.top = `${vv.offsetTop}px`; }
+}
+window.visualViewport?.addEventListener('resize', fitComposer);
+function pickBudget(form, open) {
+  form.classList.toggle('is-picking', open);
+  form.querySelector('.qa-picker').hidden = !open;
+  form.querySelector('.composer-fields').hidden = open;
+  form.querySelector('[data-act="qa-cat"]').setAttribute('aria-expanded', String(open));
+}
+
+// Floating Add purchase / Scan receipt, like Splitwise's Add expense: they shrink to
+// icons while you scroll down the list and grow their labels back when you scroll
+// up or reach the top.
+let lastScroll = 0;
+addEventListener('scroll', () => {
+  const fab = document.getElementById('fab'), y = scrollY;
+  if (fab) {
+    if (y < 40 || y < lastScroll - 6) fab.classList.remove('is-collapsed');
+    else if (y > lastScroll + 6) fab.classList.add('is-collapsed');
+  }
+  lastScroll = y;
+}, { passive: true });
+window.visualViewport?.addEventListener('scroll', fitComposer);
+
 function openSheet(next) {
   sheet = next;
+  if (sheet.type === 'manual') {
+    // Splitwise-style: full screen, keyboard straight onto "Where?". Focusing inside
+    // the tap that opened it is what lets iPhone show the keyboard.
+    $('#sheet-root').innerHTML = quickAddSheet(S, L.todayISO());
+    document.body.classList.add('is-locked');
+    $('.composer [name="merchant"]').focus({ preventScroll: true });
+    fitComposer();
+    floodOpen(sheet.from);
+    return;
+  }
   const t = sheet.type === 'txn' && S.txns.find(x => x.id === sheet.id);
   if (sheet.type === 'txn' && !t) return shut();
   const views = {
     txn: () => [reviewSheet(S, t), t.reviewed ? 'Purchase' : 'Review purchase'],
-    manual: () => [manualSheet(S, L.todayISO()), 'Add purchase'],
     category: () => { const c = S.categories.find(x => x.id === sheet.id); return [categorySheet(S, c), c ? `${c.name} budget` : 'New budget']; },
     plan: () => { const p = S.plans.find(x => x.id === sheet.id); return [planSheet(S, p), p ? 'Edit plan' : 'Plan a purchase']; },
     scan: () => [receiptStartSheet(S, S.txns.find(x => x.id === sheet.id), { reader, samples }), 'Add receipt'],
@@ -88,7 +130,10 @@ function openSheet(next) {
 }
 function shut(after) {
   sheet = null;
-  closeSheet(() => { $('#sheet-root').innerHTML = ''; document.body.classList.remove('is-locked'); after?.(); });
+  const done = () => { $('#sheet-root').innerHTML = ''; document.body.classList.remove('is-locked'); after?.(); };
+  // Add purchase shrinks back into its button; the keyboard starts dropping right away.
+  if ($('.composer')) { document.activeElement?.blur(); return floodClose(done, () => $('#fab-root [data-act="manual"]')); }
+  closeSheet(done);
 }
 
 // Reconcile one purchase: close the sheet, slide its row away, and let the rest move up.
@@ -121,9 +166,14 @@ document.addEventListener('click', e => {
     jump: () => { ui.weekOffset = weeksBetween(el.dataset.date, L.todayISO()); go('inbox'); render(); },
     'show-all': () => { ui.showAll = !ui.showAll; render(); },
     open: () => openSheet({ type: 'txn', id }),
-    manual: () => openSheet({ type: 'manual' }),
+    manual: () => openSheet({ type: 'manual', from: el }),
     scan: () => openSheet({ type: 'scan', id: id || null }),
     'go-inbox': () => go('inbox'),
+    'qa-paid': () => { const f = el.form; f.paid.value = f.paid.value === 'card' ? 'cash' : 'card'; refreshQuickAdd(S, f, L.todayISO()); },
+    // The budget list takes the fields' place and the keyboard drops so it all fits.
+    'qa-cat': () => { const f = el.form, open = !f.classList.contains('is-picking'); pickBudget(f, open); if (open) document.activeElement?.blur(); else (f.amount.value ? f.merchant : f.amount).focus(); },
+    'qa-pick': () => { const f = el.form; f.cat.value = el.dataset.id; f.dataset.picked = '1'; pickBudget(f, false); refreshQuickAdd(S, f, L.todayISO()); if (!f.amount.value) f.amount.focus(); },
+    'qa-note': () => { const f = el.form, n = f.querySelector('.composer-note'); pickBudget(f, false); n.hidden = false; n.querySelector('textarea').focus(); },
     reload: () => location.reload(),
     'go-planned': () => go('planned'),
     whatif: () => openSheet({ type: 'whatif', id }),
@@ -163,11 +213,13 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   if (e.target.name === 'kind') { const cats = $('.sheet .cats'); if (cats) cats.hidden = e.target.value !== 'spending'; }
   if (e.target.name === 'subs-tab') { ui.subsTab = e.target.value; render(); }
+  if (e.target.closest?.('.composer')) refreshQuickAdd(S, e.target.form, L.todayISO());
   if (e.target.name === 'receipt-view') { editReceipt(lines => lines, () => { ui.receiptView = e.target.value; }); }
   if (e.target.matches('[data-upload]') && e.target.files?.[0]) uploadReceipt(e.target.files[0], e.target.dataset.upload || null);
 });
 document.addEventListener('input', e => {
   const t = e.target;
+  if (t.closest('.composer')) refreshQuickAdd(S, t.form, L.todayISO());
   if (t.id === 'search') { ui.search = t.value; $('#history-list').innerHTML = historyList(S, historyHits(S, ui.search)); }
   if (t.type === 'range') t.style.setProperty('--fill', `${((t.value - t.min) * 100 / (t.max - t.min)).toFixed(2)}%`);
   if (t.name === 'whatif') { const out = $('#whatif-out'); if (out) out.innerHTML = whatIfResult(S, S.plans.find(p => p.id === t.dataset.plan), Number(t.value), L.todayISO()); }
@@ -194,7 +246,11 @@ document.addEventListener('submit', e => {
   };
   forms[f.dataset.form]?.();
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheet) shut(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && sheet) shut();
+  // In Add purchase, Return on "Where?" moves to the amount instead of submitting.
+  if (e.key === 'Enter' && e.target.name === 'merchant' && e.target.closest('.composer')) { e.preventDefault(); e.target.form.amount.focus(); }
+});
 
 // ---- receipts
 function openReceipt(id) { ui.receiptStep = 'items'; ui.receiptView = 'copy'; location.hash = `/receipt/${id}`; }
@@ -269,7 +325,7 @@ enablePullToRefresh($('#ptr'), {
   onRefresh: async () => { try { await api('/api/sync', {}); say('Up to date'); } catch (e) { say(e.message, true); } render(); }
 });
 
-$('#app').innerHTML = '<div id="screen-root"></div><div id="nav-root"></div>';
+$('#app').innerHTML = '<div id="screen-root"></div><div id="fab-root"></div><div id="nav-root"></div>';
 $('#overlay').innerHTML = '<div id="sheet-root"></div><div id="busy-root"></div><div id="toast-root"></div>';
 // Installable app: the service worker lets SaveUp open from the home screen.
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
