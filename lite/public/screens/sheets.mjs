@@ -35,7 +35,7 @@ export function reviewSheet(S, t) {
     ${splitSummary(S, t)}
     ${t.amountCents > 0 && (!t.transfer || t.transferKind === 'spending') ? (t.receiptId
       ? (t.splits?.length ? '' : button('View receipt', { variant: 'secondary', icon: 'file', full: true, act: 'receipt-open', data: { id: t.receiptId } }))
-      : button('Add receipt', { variant: 'secondary', icon: 'camera', full: true, act: 'scan', data: { id: t.id } })) : ''}
+      : button('Add receipt', { variant: 'secondary', icon: 'camera', full: true, act: 'scan-options', data: { id: t.id } })) : ''}
     ${transfer}
     <div class="cats" ${t.transfer && kind !== 'spending' ? 'hidden' : ''}>${choiceList('cat', categoryChoices(S, selected, sug?.categoryId), { value: selected, legend: 'Which budget?', hint: t.splits?.length ? 'Picking one budget here replaces the split.' : t.transfer ? '' : 'The store name and amount don’t tell us what you bought.' })}</div>
     <div class="stack"><b class="section-label">Optional details</b>
