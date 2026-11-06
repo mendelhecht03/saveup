@@ -10,13 +10,13 @@ import { catArt, signed, shortDate, accountLabel, txnIcon } from './shared.mjs';
 const cents = c => (c / 100).toFixed(2);
 
 // ---- step 10: attach a receipt
-export function receiptStartSheet(S, t, { reader, samples = [] }) {
+export function receiptStartSheet(S, t, { reader, readerName = '', samples = [] }) {
   const option = (icon, title, sub, extra) => `<label class="receipt-option card">${iconTile(icon, { size: 'sm' })}<span class="grow"><b>${esc(title)}</b><small>${esc(sub)}</small></span>${line('chevronRight', { size: 18 })}${extra}</label>`;
   const file = (capture) => `<input type="file" accept="image/jpeg,image/png,image/webp,image/*" data-upload="${t ? esc(t.id) : ''}"${capture ? ' capture="environment"' : ''} class="visually-hidden">`;
   const head = t ? card(`<div class="review-head">${iconTile(txnIcon(S, t).icon, { size: 'sm', round: true })}<span class="grow"><b class="review-name">${esc(t.name)}</b><small class="muted">${esc(shortDate(t.date))} · ${esc(accountLabel(S, t))}</small></span><b class="review-amount">${signed(t)}</b></div>`, { cls: 'card-flat' }) : '';
   return `<div class="stack-lg">${head}
     <p class="muted">${t ? `Add a receipt to split this ${money(t.amountCents)} charge into the right budgets.` : 'Scan first. SaveUp fills in the purchase and waits for the bank charge, so it counts once.'}</p>
-    ${reader ? '' : note('Reading photos needs ANTHROPIC_API_KEY in lite/.env.local. Without it, you type the items yourself.', { tone: 'plain' })}
+    ${reader ? (readerName ? note(`Photos are read by ${readerName}. You check every line before anything counts.`, { tone: 'plain' }) : '') : note('Reading photos needs a receipt reader key (Azure or Anthropic) in lite/.env.local. Without one, you type the items yourself.', { tone: 'plain' })}
     <div class="stack">
       ${option('receipt', 'Take photo', 'Use the camera', file(true))}
       ${option('receipt', 'Choose file', 'A photo or screenshot of the receipt', file(false))}

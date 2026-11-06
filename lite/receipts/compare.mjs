@@ -1,12 +1,14 @@
 // Compares receipt readers on the sample images in sandbox/receipts/*.png
 // against the true data in sandbox/receipts.mjs. From lite/: node receipts/compare.mjs
-// Claude runs if ANTHROPIC_API_KEY is set (env or lite/.env.local); Tesseract runs
-// if `tesseract` is on PATH. Nothing is installed or saved.
+// Claude runs if ANTHROPIC_API_KEY is set (env or lite/.env.local); Azure runs if
+// AZURE_DOCINTEL_ENDPOINT and AZURE_DOCINTEL_KEY are set; Tesseract runs if
+// `tesseract` is on PATH. Nothing is installed or saved.
 import { readFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { RECEIPTS } from '../sandbox/receipts.mjs';
 import { claudeReceiptReader, checkTotals } from './reader.mjs';
+import { azureReceiptReader } from './azure.mjs';
 
 const here = p => fileURLToPath(new URL(p, import.meta.url));
 const norm = s => String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
@@ -56,6 +58,9 @@ async function main() {
   const categories = [...new Set(RECEIPTS.flatMap(r => r.items.map(i => i.category)))].map(c => ({ id: c, name: c, description: '' }));
   if (claude) readers.push({ name: 'Claude', read: file => claude.read({ imageBase64: readFileSync(file).toString('base64'), mediaType: 'image/png', categories }) });
   else console.log('Claude: skipped (no ANTHROPIC_API_KEY in the environment or lite/.env.local).');
+  const azure = azureReceiptReader({ endpoint: process.env.AZURE_DOCINTEL_ENDPOINT, apiKey: process.env.AZURE_DOCINTEL_KEY });
+  if (azure) readers.push({ name: 'Azure', read: file => azure.read({ imageBase64: readFileSync(file).toString('base64'), mediaType: 'image/png', categories }) });
+  else console.log('Azure: skipped (no AZURE_DOCINTEL_ENDPOINT and AZURE_DOCINTEL_KEY in lite/.env.local).');
   if (hasTesseract()) readers.push({ name: 'Tesseract', read: async file => runTesseract(file) });
   else console.log('Tesseract: skipped (`tesseract` is not on PATH).');
   if (!readers.length) { console.log('No receipt reader available, nothing to compare.'); return; }
