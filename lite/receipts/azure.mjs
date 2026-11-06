@@ -32,8 +32,9 @@ export function fromAzure(analyzeResult, categories = []) {
   const taxDetails = (f.TaxDetails?.valueArray || []).map(t => money(obj(t).Amount)).filter(a => a != null);
   const taxCents = money(f.TotalTax) ?? taxDetails.reduce((s, a) => s + a, 0);
   const payment = (f.Payments?.valueArray || []).map(p => str(obj(p).Method).toLowerCase()).join(' ');
-  // Azure has no card-number field; the masked number is usually in the raw text ("**** 1234").
-  const last4 = String(analyzeResult?.content || '').match(/(?:[*xX•]{3,}[\s-]*)(\d{4})\b/)?.[1] || '';
+  // Azure has no card-number field; the masked number is usually in the raw text
+  // ("**** 1234", "XXXX1234", or bullets that Azure writes as middle dots "···· 1234").
+  const last4 = String(analyzeResult?.content || '').match(/(?:[*xX•·∙●]{3,}[\s-]*)(\d{4})\b/)?.[1] || '';
   return normalizeReading({
     merchant: str(f.MerchantName),
     date: String(f.TransactionDate?.valueDate || ''),

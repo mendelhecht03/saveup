@@ -38,6 +38,13 @@ test('an Azure receipt becomes a SaveUp reading with every line left for the per
   assert.equal(checkTotals(r).ok, true);
 });
 
+test('the card’s last 4 is found however the receipt masks it, as Azure writes it', () => {
+  for (const masked of ['VISA ···· 4417', 'VISA •••• 4417', 'CARD XXXXXXXXXXXX4417', 'MC **** 4417']) {
+    const r = fromAzure({ content: `TOTAL 1.00\n${masked}\nAUTH 206310`, documents: [{ fields: {} }] });
+    assert.deepEqual([r.last4, r.method], ['4417', 'card'], masked);
+  }
+});
+
 test('an empty or odd Azure answer still gives a safe, empty reading', () => {
   const r = fromAzure({ documents: [] });
   assert.deepEqual([r.merchant, r.lines.length, r.totalCents, r.last4], ['', 0, 0, '']);
