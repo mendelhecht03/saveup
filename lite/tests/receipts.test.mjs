@@ -151,3 +151,31 @@ test('choosing one budget in the review sheet replaces a split', () => {
   assert.equal(t.splits, null);
   assert.equal(L.budgetSummary(s, '2026-11-04').find(b => b.id === 'preset-1').total, 15000);
 });
+
+test('receipt items arrive with a budget guess: your past choice for that item, then the purchase, then the store', () => {
+  const { s } = setup();
+  // A past receipt at the same store taught that this code is Clothing.
+  L.addReceipt(s, { source: 'manual', merchant: 'Flamms Clothing', lines: [{ code: 'BLZR', name: 'Blazer', amountCents: 10999, categoryId: 'c' }] }, 'old');
+  const r = L.addReceipt(s, { source: 'scan', merchant: 'FLAMMS CLOTHING', lines: [{ code: 'BLZR', name: 'Blazer', amountCents: 10999 }, { code: 'SOCK', name: 'Socks', amountCents: 500 }] }, 'new');
+  assert.deepEqual(r.lines.map(l => [l.categoryId, l.unsure]), [['c', true], [null, false]], 'only the known item is guessed, and the guess is marked unsure');
+  // Attaching the bank purchase fills the rest from that purchase's budget.
+  L.applySync(s, 'item1', { added: [plaidTxn('t1', 115.99, { name: 'Flamms Clothing' })] });
+  L.confirmTxn(s, { id: 't1', categoryId: 'h' });
+  L.attachReceipt(s, { id: 'new', txnId: 't1' });
+  assert.deepEqual(r.lines.map(l => l.categoryId), ['c', 'h']);
+  assert.equal(L.suggestLineBudget(s, { merchant: 'Somewhere new' }, { code: 'X' }), null, 'no history, no guess');
+});
+
+test('the receipt screen shows payee, budget, account and date, with chips instead of dropdowns', async () => {
+  const { receiptScreen, receiptBudgetSheet } = await import('../public/screens/receipt.mjs');
+  const { s } = setup();
+  L.addReceipt(s, { source: 'scan', merchant: 'Flamms Clothing', date: '2026-10-20', time: '17:30', last4: '4417', method: 'card', totalCents: 11499,
+    lines: [{ code: 'BLZR', name: 'Blazer', amountCents: 10999, categoryId: 'c' }, { code: 'SOCK', name: 'Socks', amountCents: 500 }] }, 'r1');
+  const html = receiptScreen({ S: s, ui: { receiptStep: 'items' }, route: 'receipt/r1' });
+  assert.doesNotMatch(html, /<select/, 'no dropdowns');
+  for (const bit of ['Payee', 'Flamms Clothing', 'Split · 1 budget, 1 to pick', 'Card •••• 4417 · waiting for the bank charge', 'Tue, Oct 20, 2026 · 17:30', '$114.99'])
+    assert.ok(html.includes(bit), bit);
+  const sheet = receiptBudgetSheet(s, s.receipts[0], '1');
+  assert.ok(sheet.includes('New budget') && sheet.includes('Also use it for the 1 other item') === false, 'the other item already has a budget');
+  assert.match(receiptBudgetSheet(s, s.receipts[0], 'all'), /Every item on this receipt/);
+});

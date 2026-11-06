@@ -7,6 +7,7 @@ import { merchantKey } from './transfers.mjs';
 import { breakdown, ADJUSTMENT } from './splits.mjs';
 import { text, cents, date, findTxn, categoryOrNull } from './validate.mjs';
 import { addManual } from './review.mjs';
+import { suggest } from './suggestions.mjs';
 
 const DAY = 864e5;
 const daysApart = (a, b) => Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / DAY;
@@ -25,6 +26,35 @@ export function applyKnownNames(state, merchant, lines) {
     return known ? { ...l, name: known, remembered: true } : l;
   });
 }
+
+// A budget guess for a receipt line, in order: what you chose for this item at
+// this store before, the bank purchase's budget, then what this store usually is.
+export function suggestLineBudget(state, { merchant, txnId }, line) {
+  const exists = id => Boolean(id) && state.categories.some(c => c.id === id);
+  if (merchant) {
+    const key = nameKey(merchant, line.code);
+    for (let i = state.receipts.length - 1; i >= 0; i--) {
+      const r = state.receipts[i];
+      if (!r.merchant || merchantKey(r.merchant) !== merchantKey(merchant)) continue;
+      const hit = r.lines.find(l => !l.unsure && exists(l.categoryId) && nameKey(r.merchant, l.code) === key);
+      if (hit) return hit.categoryId;
+    }
+  }
+  const t = txnId && state.txns.find(x => x.id === txnId);
+  if (t) {
+    if (exists(t.categoryId) && !t.splits?.length) return t.categoryId;
+    const s = suggest(state, t);
+    if (exists(s?.categoryId)) return s.categoryId;
+  }
+  const rule = merchant && state.rules[merchantKey(merchant)];
+  return exists(rule?.categoryId) ? rule.categoryId : null;
+}
+// Lines with no budget get the guess, marked unsure so the screen shows it as a guess.
+const withGuesses = (state, r, lines) => lines.map(l => {
+  if (l.categoryId) return l;
+  const g = suggestLineBudget(state, r, l);
+  return g ? { ...l, categoryId: g, unsure: true } : l;
+});
 
 // ---- receipts
 const cleanLine = (state, l) => ({
@@ -48,6 +78,7 @@ export function addReceipt(state, input, newId) {
     try { return cleanLine(state, l); } catch { return null; }
   }).filter(Boolean));
   if (input.txnId) r.txnId = findTxn(state, input.txnId).id;
+  r.lines = withGuesses(state, r, r.lines);
   state.receipts.push(r);
   return r;
 }
@@ -141,6 +172,7 @@ export function attachReceipt(state, { id, txnId }) {
   const t = findTxn(state, txnId);
   if (t.receiptId && t.receiptId !== r.id) throw new InputError('That purchase already has a receipt.');
   r.txnId = t.id;
+  r.lines = withGuesses(state, r, r.lines);
   return r;
 }
 
