@@ -16,7 +16,7 @@ import { receiptStartSheet, receiptScreen, matchCard } from './screens/receipt.m
 import { quickAddSheet, refreshQuickAdd } from './screens/quickadd.mjs';
 import { byDate } from './screens/shared.mjs';
 
-let S = null, csrf = '', configured = true, ai = false, reader = false, samples = [], busy = '', sheet = null, toastTimer = 0;
+let S = null, csrf = '', configured = true, ai = false, reader = false, readerName = '', samples = [], busy = '', sheet = null, toastTimer = 0;
 const ui = { weekOffset: 0, showAll: false, openBudgets: new Set(), editPlans: false, search: '', receiptStep: 'items', receiptView: 'copy', subsTab: 'active' };
 const $ = s => document.querySelector(s);
 const toCents = v => { const n = Number(String(v).replace(/[$,\s]/g, '')); return Number.isFinite(n) && String(v).trim() ? Math.round(n * 100) : NaN; };
@@ -119,7 +119,7 @@ function openSheet(next) {
     txn: () => [reviewSheet(S, t), t.reviewed ? 'Purchase' : 'Review purchase'],
     category: () => { const c = S.categories.find(x => x.id === sheet.id); return [categorySheet(S, c), c ? `${c.name} budget` : 'New budget']; },
     plan: () => { const p = S.plans.find(x => x.id === sheet.id); return [planSheet(S, p), p ? 'Edit plan' : 'Plan a purchase']; },
-    scan: () => [receiptStartSheet(S, S.txns.find(x => x.id === sheet.id), { reader, samples }), 'Add receipt'],
+    scan: () => [receiptStartSheet(S, S.txns.find(x => x.id === sheet.id), { reader, readerName, samples }), 'Add receipt'],
     whatif: () => { const p = S.plans.find(x => x.id === sheet.id); return [whatIfSheet(S, p, L.todayISO()), `What if the ${p.name.toLowerCase()} costs…`]; },
     match: () => { const m = L.openMatches(S).find(x => x.bank.id === sheet.id); return m ? [matchCard(S, m, { open: true }), 'Match purchase'] : [note('This match was already handled.'), 'Match purchase']; }
   };
@@ -332,5 +332,5 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').cat
 // The home-screen shortcut "Scan a receipt" opens #/inbox?scan.
 if (location.hash.endsWith('?scan')) { history.replaceState(null, '', '#/inbox'); setTimeout(() => openSheet({ type: 'scan', id: null }), 400); }
 
-api('/api/state').then(d => { configured = d.configured; ai = d.ai; reader = d.reader; samples = d.samples || []; render({ firstBars: true, enter: true }); })
+api('/api/state').then(d => { configured = d.configured; ai = d.ai; reader = d.reader; readerName = d.readerName || ''; samples = d.samples || []; render({ firstBars: true, enter: true }); })
   .catch(e => { $('#screen-root').innerHTML = `<main class="screen">${emptyState({ icon: 'cloud', title: 'SaveUp isn’t reachable', text: e.message, action: button('Try again', { act: 'reload' }) })}</main>`; });
