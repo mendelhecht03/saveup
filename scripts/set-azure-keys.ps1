@@ -27,6 +27,10 @@ foreach ($f in $fields) {
   if ($f.Name -eq 'AZURE_DOCINTEL_ENDPOINT' -and $value -notmatch '^https://') {
     Write-Host "  That doesn't look like an endpoint (it should start with https://). Skipped." -ForegroundColor Yellow; continue
   }
+  # Azure keys are only letters and digits (32 or 84 long); anything else was copied by mistake.
+  if ($f.Name -eq 'AZURE_DOCINTEL_KEY' -and $value -notmatch '^[A-Za-z0-9]{32,}$') {
+    Write-Host "  That doesn't look like KEY 1 (it should be only letters and numbers, 32+ characters). Nothing saved; copy KEY 1 again and re-run." -ForegroundColor Yellow; continue
+  }
   $i = -1
   for ($n = 0; $n -lt $lines.Count; $n++) { if ($lines[$n] -match "^\s*$($f.Name)\s*=") { $i = $n; break } }
   if ($i -ge 0) { $lines[$i] = "$($f.Name)=$value" } else { $lines.Add("$($f.Name)=$value") }
