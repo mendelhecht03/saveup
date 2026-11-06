@@ -3,9 +3,9 @@
 // confirm how it splits across budgets. Also the "Looks like the same purchase"
 // card that links a logged purchase to its bank charge.
 import * as L from '../logic.mjs';
-import { pageHeader, card, button, row, listSection, banner, note, pills, statusPill, segmented, esc, money, iconTile, link } from '../ui/components.mjs';
+import { pageHeader, card, button, row, listSection, banner, note, pills, statusPill, segmented, esc, money, iconTile, link, checkbox } from '../ui/components.mjs';
 import { line } from '../ui/icons.mjs';
-import { catArt, signed, shortDate, accountLabel, txnIcon } from './shared.mjs';
+import { catArt, signed, shortDate, longDate, accountLabel, txnIcon } from './shared.mjs';
 
 const cents = c => (c / 100).toFixed(2);
 
@@ -37,10 +37,50 @@ export function receiptScreen({ S, ui, route }) {
   return step === 'split' ? splitStep(S, r, t) : itemsStep(S, ui, r, t);
 }
 
+// The key facts at a glance, like a YNAB transaction: what was paid, to whom,
+// from which account, when, and into which budget(s). Tap Budget to set it for every item.
+export function receiptDetails(S, r, t) {
+  const cats = [...new Set(r.lines.map(l => l.categoryId).filter(Boolean))].map(id => S.categories.find(c => c.id === id)).filter(Boolean);
+  const missing = r.lines.filter(l => !l.categoryId).length;
+  const budget = !r.lines.length ? 'No items yet'
+    : cats.length === 1 && !missing ? `${cats[0].emoji || ''} ${cats[0].name}`.trim()
+    : cats.length ? `Split · ${cats.length} budget${cats.length === 1 ? '' : 's'}${missing ? `, ${missing} to pick` : ''}`
+    : 'Not picked yet';
+  const account = t ? accountLabel(S, t) : r.method === 'cash' ? 'Cash' : r.last4 ? `Card •••• ${r.last4} · waiting for the bank charge` : 'Not matched to a bank charge yet';
+  const when = r.date ? `${longDate(r.date)}${r.time ? ` · ${r.time}` : ''}` : 'No date';
+  const amount = t ? Math.abs(t.amountCents) : r.totalCents;
+  const row = (label, value, { act, data = '', tone = '' } = {}) => act
+    ? `<button type="button" class="rd-row" data-act="${act}"${data}><span class="rd-label">${label}</span><span class="rd-value ${tone}">${esc(value)}</span>${line('chevronRight', { size: 16 })}</button>`
+    : `<div class="rd-row"><span class="rd-label">${label}</span><span class="rd-value ${tone}">${esc(value)}</span></div>`;
+  return `<section class="card rdetails">
+    <div class="rd-amount"><b>${money(amount)}</b><small>${t ? 'Bank charge' : 'Receipt total'}</small></div>
+    ${row('Payee', r.merchant || 'Unknown store', { act: 'receipt-focus', data: ' data-field="merchant"' })}
+    ${row('Budget', budget, { act: r.lines.length ? 'receipt-pick' : null, data: ' data-line="all"', tone: cats.length && !missing ? '' : 'is-todo' })}
+    ${row('Account', account, { tone: t ? '' : 'is-muted' })}
+    ${row('Date', when, { act: 'receipt-focus', data: ' data-field="date"' })}
+  </section>`;
+}
+
+// Picking a budget for one item (or all of them) from a grid instead of a dropdown.
+// The current or guessed budget comes first; "New budget" sits at the end.
+export function receiptBudgetSheet(S, r, which) {
+  const all = which === 'all', l = all ? null : r.lines[Number(which)];
+  if (!all && !l) return note('That item was removed.');
+  const current = all ? null : l.categoryId;
+  const others = all ? 0 : r.lines.filter((x, j) => j !== Number(which) && !x.categoryId).length;
+  const ordered = [...S.categories].sort((a, b) => (b.id === current) - (a.id === current));
+  const tile = c => `<button type="button" class="qa-cat rpick${c.id === current ? ' is-current' : ''}" data-act="receipt-set-cat" data-id="${esc(c.id)}" data-line="${esc(which)}">${iconTile(catArt(c), { emoji: c.emoji, size: 'sm', round: true })}<span>${esc(c.name)}</span>${c.id === current ? line('check', { size: 16 }) : ''}</button>`;
+  return `<div class="stack-lg">
+    <p class="muted">${all ? `Every item on this receipt goes to the budget you pick.` : `${esc(l.name)} · ${money(l.amountCents)}`}</p>
+    <div class="qa-cats">${ordered.map(tile).join('')}
+      <button type="button" class="qa-cat rpick is-new" data-act="category">${iconTile('other', { size: 'sm', round: true })}<span>New budget</span></button></div>
+    ${others ? checkbox('fill-rest', `Also use it for the ${others} other item${others === 1 ? '' : 's'} with no budget`, { checked: true }) : ''}
+  </div>`;
+}
+
 function itemsStep(S, ui, r, t) {
   const view = r.image && ui.receiptView === 'original' ? 'original' : 'copy';
   const check = L.receiptCheck(S, r);
-  const catOptions = l => `<option value="">Pick a budget</option>${S.categories.map(c => `<option value="${esc(c.id)}"${c.id === l.categoryId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}`;
   const lineRow = (l, i) => {
     const c = S.categories.find(x => x.id === l.categoryId);
     return `<li class="rline" data-line="${i}">
@@ -49,8 +89,8 @@ function itemsStep(S, ui, r, t) {
         <input class="rline-name" name="name" value="${esc(l.name)}" maxlength="80" aria-label="Item name">
         ${l.name !== l.code ? `<small class="rline-code">${esc(l.code)}${l.remembered ? ' · name you gave it' : ''}</small>` : ''}
         <span class="rline-meta">
-          <span class="select-chip${c ? '' : ' is-empty'}${l.unsure ? ' is-unsure' : ''}"><select name="cat" aria-label="Budget for ${esc(l.name)}">${catOptions(l)}</select>${line('chevronDown', { size: 14 })}</span>
-          ${l.unsure ? statusPill('Check this', 'warn', { icon: 'alert' }) : ''}
+          <input type="hidden" name="cat" value="${esc(l.categoryId || '')}">
+          <button type="button" class="rline-cat${c ? (l.unsure ? ' is-guess' : '') : ' is-empty'}" data-act="receipt-pick" data-line="${i}" aria-label="Budget for ${esc(l.name)}: ${c ? esc(c.name) + (l.unsure ? ', a guess' : '') : 'none yet'}">${c ? `<span aria-hidden="true">${esc(c.emoji || '')}</span>${esc(c.name)}` : 'Pick a budget'}${line('chevronDown', { size: 14 })}</button>
         </span>
       </span>
       <span class="rline-amount"><span>$</span><input name="amount" inputmode="decimal" value="${cents(l.amountCents)}" aria-label="Amount for ${esc(l.name)}"></span>
@@ -72,6 +112,7 @@ function itemsStep(S, ui, r, t) {
   </form>`;
   const original = r.image ? `<figure class="receipt-original card"><img src="/api/receipt/image?id=${encodeURIComponent(r.id)}" alt="Original receipt from ${esc(r.merchant)}"></figure>` : '';
   return `${pageHeader({ back: t ? 'Purchase' : 'Inbox', backAct: 'go-inbox', center: 'Review receipt' })}
+    ${receiptDetails(S, r, t)}
     ${r.note ? banner('Couldn’t read this one', r.note, { tone: 'info' }) : ''}
     ${r.image ? `<div class="receipt-toggle">${segmented('receipt-view', [['copy', 'Editable copy'], ['original', 'Original']], { value: view })}</div>` : ''}
     ${view === 'original' ? original : paper}
@@ -79,7 +120,7 @@ function itemsStep(S, ui, r, t) {
       <b class="section-label">Review extracted items</b>
       <p class="muted">Rename cryptic codes once and SaveUp remembers them for ${esc(r.merchant || 'this store')}. Tax is shared across the items.</p>
       ${check.printedDifference ? note(`The items and tax add up to ${money(check.lineSum + r.taxCents)}, but the receipt total says ${money(r.totalCents)}. Check the amounts.`, { tone: 'warn' }) : ''}
-      ${r.lines.some(l => l.unsure) ? note('Lines marked “Check this” were hard to read or their budget is a guess.', { tone: 'warn' }) : ''}
+      ${r.lines.some(l => l.unsure && l.categoryId) ? note('Budgets with a dashed outline are guesses. Tap one to change it; otherwise it stays.') : ''}
     </div>` : ''}
     <div class="btn-stack">${button('Next: confirm the split', { full: true, act: 'receipt-next', data: { id: r.id } })}
       ${button('Remove this receipt', { variant: 'ghost', full: true, act: 'receipt-delete', data: { id: r.id } })}</div>`;

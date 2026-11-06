@@ -135,7 +135,7 @@ test('receipt screens render from the component set and escape what was read', a
     lines: [{ code: 'X<1>', name: 'X<1>', amountCents: 1000, categoryId: groceries, unsure: true }] }, 'r1');
   const items = receiptScreen({ S: s, ui: { receiptStep: 'items' }, route: 'receipt/r1' });
   assert.match(items, /Editable copy|rline/);
-  assert.match(items, /Check this/);
+  assert.match(items, /rline-cat is-guess/, 'an unsure budget shows as a guess');
   assert.doesNotMatch(items, /<b>Shop<\/b>|X<1>/, 'receipt text is escaped');
   const split = receiptScreen({ S: s, ui: { receiptStep: 'split' }, route: 'receipt/r1' });
   assert.match(split, /Difference/);

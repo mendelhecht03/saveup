@@ -12,7 +12,7 @@ import { galleryScreen } from './screens/gallery.mjs';
 import { subscriptionsScreen, iousScreen, goalsScreen, cashScreen, returnsScreen, settingsScreen } from './screens/preview.mjs';
 import { whatIfSheet, whatIfResult } from './screens/week.mjs';
 import { reviewSheet, categorySheet, planSheet, iconEmoji, PRIORITY_STOPS } from './screens/sheets.mjs';
-import { receiptStartSheet, receiptScreen, matchCard } from './screens/receipt.mjs';
+import { receiptStartSheet, receiptScreen, receiptBudgetSheet, matchCard } from './screens/receipt.mjs';
 import { quickAddSheet, refreshQuickAdd } from './screens/quickadd.mjs';
 import { byDate } from './screens/shared.mjs';
 
@@ -121,6 +121,7 @@ function openSheet(next) {
     plan: () => { const p = S.plans.find(x => x.id === sheet.id); return [planSheet(S, p), p ? 'Edit plan' : 'Plan a purchase']; },
     scan: () => [receiptStartSheet(S, S.txns.find(x => x.id === sheet.id), { reader, readerName, samples }), 'Add receipt'],
     whatif: () => { const p = S.plans.find(x => x.id === sheet.id); return [whatIfSheet(S, p, L.todayISO()), `What if the ${p.name.toLowerCase()} costs…`]; },
+    'receipt-budget': () => { const r = S.receipts.find(x => x.id === sheet.id); const l = sheet.line === 'all' ? null : r?.lines[Number(sheet.line)]; return [r ? receiptBudgetSheet(S, r, sheet.line) : note('This receipt was removed.'), l ? `Budget for ${l.name}` : 'Budget for every item']; },
     match: () => { const m = L.openMatches(S).find(x => x.bank.id === sheet.id); return m ? [matchCard(S, m, { open: true }), 'Match purchase'] : [note('This match was already handled.'), 'Match purchase']; }
   };
   const [body, title] = views[sheet.type]();
@@ -183,6 +184,16 @@ document.addEventListener('click', e => {
     'receipt-open': () => shut(() => openReceipt(id)),
     'receipt-digital': () => act(async () => { const { receiptId } = await api('/api/receipt/digital', { sampleId: el.dataset.sample, txnId: el.dataset.txn || null }); shut(() => openReceipt(receiptId)); }),
     'receipt-manual': () => act(async () => { const { receiptId } = await api('/api/receipt/manual', { txnId: el.dataset.txn || null }); shut(() => openReceipt(receiptId)); }),
+    // A budget chip opens a grid of budgets; picking one saves it (and, if ticked, fills the other empty items).
+    'receipt-pick': () => { const f = $('form[data-form="receipt"]'); if (f) openSheet({ type: 'receipt-budget', id: f.dataset.id, line: el.dataset.line }); },
+    'receipt-set-cat': () => {
+      const which = el.dataset.line, fill = Boolean($('#sheet-root [name="fill-rest"]')?.checked);
+      shut(() => editReceipt(lines => lines.map((x, j) => which === 'all' || j === Number(which) || (fill && !x.categoryId) ? { ...x, categoryId: id, unsure: false } : x)));
+    },
+    'receipt-focus': () => {
+      const focus = () => { const input = $('form[data-form="receipt"]')?.[el.dataset.field]; input?.scrollIntoView({ block: 'center', behavior: 'smooth' }); input?.focus({ preventScroll: true }); };
+      if ($('form[data-form="receipt"]')) focus(); else editReceipt(l => l, () => { ui.receiptView = 'copy'; }).then(focus);
+    },
     'receipt-add-line': () => editReceipt(lines => [...lines, { code: 'ITEM', name: 'New item', amountCents: 0, categoryId: null }]),
     'receipt-remove-line': () => editReceipt(lines => lines.filter((_, i) => i !== Number(el.dataset.line))),
     'receipt-next': () => editReceipt(lines => lines, () => { ui.receiptStep = 'split'; scrollTo(0, 0); }),
