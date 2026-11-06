@@ -23,7 +23,7 @@ const PRESETS = [
 export const GROUP_ORDER = ['Needs', 'Wants', 'Goals'];
 const DEFAULT_GROUPS = { housing: 'Needs', groceries: 'Needs', household: 'Needs', 'personal care': 'Needs', recreation: 'Wants', travel: 'Wants', education: 'Goals' };
 export const defaultGroup = name => DEFAULT_GROUPS[String(name).toLowerCase()] || '';
-
+
 export function newState() {
   return {
     version: 3, items: [], accounts: {}, txns: [], plans: [], rules: {}, receipts: [], itemNames: {},
