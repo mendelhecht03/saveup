@@ -125,8 +125,8 @@ export const toast = (message, { error = false } = {}) => `<div class="${cls('to
 
 // ---- form fields
 const fieldWrap = (label, input, { hint, optional, id } = {}) => `<label class="field"${id ? ` for="${esc(id)}"` : ''}><span class="field-label">${esc(label)}${optional ? ' <i>(optional)</i>' : ''}</span>${input}${hint ? `<small class="field-hint">${esc(hint)}</small>` : ''}</label>`;
-export function textField(name, label, { value = '', placeholder = '', required = false, max = 100, optional, hint, type = 'text', inputmode } = {}) {
-  return fieldWrap(label, `<input class="input" name="${esc(name)}" type="${type}" value="${esc(value)}" placeholder="${esc(placeholder)}" maxlength="${max}"${required ? ' required' : ''}${inputmode ? ` inputmode="${inputmode}"` : ''}>`, { optional, hint });
+export function textField(name, label, { value = '', placeholder = '', required = false, max = 100, optional, hint, type = 'text', inputmode, list } = {}) {
+  return fieldWrap(label, `<input class="input" name="${esc(name)}" type="${type}" value="${esc(value)}" placeholder="${esc(placeholder)}" maxlength="${max}"${required ? ' required' : ''}${inputmode ? ` inputmode="${inputmode}"` : ''}${list ? ` list="${esc(name)}-list" autocomplete="off"><datalist id="${esc(name)}-list">${list.map(o => `<option value="${esc(o)}">`).join('')}</datalist>` : '>'}`, { optional, hint });
 }
 export function moneyField(name, label, { cents, placeholder = '0.00', required = true, hint, big = false } = {}) {
   const value = cents == null ? '' : (cents / 100).toFixed(2);

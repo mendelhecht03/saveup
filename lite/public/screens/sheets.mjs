@@ -49,12 +49,14 @@ export function reviewSheet(S, t) {
 }
 
 const ICON_CHOICES = ['groceries', 'recreation', 'personal-care', 'housing', 'household', 'travel', 'education', 'clothing', 'dining', 'coffee', 'transportation', 'health', 'gifts', 'pets', 'phone', 'utilities', 'other'];
+const budgetGroups = S => [...new Set([...L.GROUP_ORDER, ...S.categories.map(c => c.group).filter(Boolean)])];
 export function categorySheet(S, c) {
   const current = c ? catArt(c) || 'other' : 'groceries';
   return `<form data-form="category" data-id="${esc(c?.id || '')}" class="stack-lg">
     <fieldset class="icon-pick"><legend class="field-label">Icon</legend><span class="icon-grid">${ICON_CHOICES.map(k => `<label><input type="radio" name="icon" value="${k}"${k === current ? ' checked' : ''}>${iconTile(k, { size: 'sm' })}<span class="sr-only">${esc(k)}</span></label>`).join('')}</span></fieldset>
     ${textField('name', 'Name', { value: c?.name, required: true, max: 40, placeholder: 'e.g. Coffee' })}
     ${moneyField('limit', 'Amount', { cents: c?.limitCents })}
+    ${textField('group', 'Group', { value: c ? c.group : 'Needs', max: 30, placeholder: 'e.g. Needs', list: budgetGroups(S), hint: 'Budgets are listed under their group, like Needs or Wants.' })}
     ${selectField('interval', 'Repeats', [['weekly', 'Every week'], ['monthly', 'Every month'], ['yearly', 'Every year']], { value: c?.interval || 'weekly' })}
     ${textArea('description', 'Description', { value: c?.description, required: true, max: 200, placeholder: 'What belongs here? This helps SaveUp suggest it.', counter: true })}
     ${button(c ? 'Save budget' : 'Create budget', { type: 'submit', full: true, size: 'lg' })}

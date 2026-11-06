@@ -18,10 +18,16 @@ const PRESETS = [
   ['🎓', 'Education', 'Tuition, books and courses', 50000, 'yearly']
 ];
 
+// Budgets sit in groups, like YNAB's. These are the starting groups; people can
+// rename them or make their own. A budget with no group shows under "Other".
+export const GROUP_ORDER = ['Needs', 'Wants', 'Goals'];
+const DEFAULT_GROUPS = { housing: 'Needs', groceries: 'Needs', household: 'Needs', 'personal care': 'Needs', recreation: 'Wants', travel: 'Wants', education: 'Goals' };
+export const defaultGroup = name => DEFAULT_GROUPS[String(name).toLowerCase()] || '';
+
 export function newState() {
   return {
     version: 3, items: [], accounts: {}, txns: [], plans: [], rules: {}, receipts: [], itemNames: {},
-    categories: PRESETS.map(([emoji, name, description, limitCents, interval], i) => ({ id: `preset-${i + 1}`, emoji, name, description, limitCents, interval }))
+    categories: PRESETS.map(([emoji, name, description, limitCents, interval], i) => ({ id: `preset-${i + 1}`, emoji, name, description, limitCents, interval, group: defaultGroup(name) }))
   };
 }
 
@@ -30,6 +36,7 @@ export function upgradeState(state) {
   const old = state.categories.find(c => c.id === 'preset-0' && c.name === 'Essentials');
   if (old) Object.assign(old, { emoji: '🧽', name: 'Household', description: 'Cleaning supplies, toiletries and home basics' });
   for (const t of state.txns) if (t.priority > ESSENTIAL) t.priority = ESSENTIAL;
+  for (const c of state.categories) if (c.group == null) c.group = defaultGroup(c.name);
   state.receipts ||= [];
   state.itemNames ||= {};
   state.version = 3;

@@ -17,7 +17,7 @@ import { quickAddSheet, refreshQuickAdd } from './screens/quickadd.mjs';
 import { byDate } from './screens/shared.mjs';
 
 let S = null, csrf = '', configured = true, ai = false, reader = false, readerName = '', samples = [], busy = '', sheet = null, toastTimer = 0;
-const ui = { weekOffset: 0, showAll: false, openBudgets: new Set(), editPlans: false, search: '', receiptStep: 'items', receiptView: 'copy', subsTab: 'active' };
+const ui = { weekOffset: 0, showAll: false, openBudgets: new Set(), closedGroups: new Set(), editPlans: false, search: '', receiptStep: 'items', receiptView: 'copy', subsTab: 'active' };
 const $ = s => document.querySelector(s);
 const toCents = v => { const n = Number(String(v).replace(/[$,\s]/g, '')); return Number.isFinite(n) && String(v).trim() ? Math.round(n * 100) : NaN; };
 
@@ -199,6 +199,7 @@ document.addEventListener('click', e => {
     plan: () => openSheet({ type: 'plan', id }),
     close: () => shut(),
     skip: () => { const next = nextInQueue(id); shut(() => next && next.id !== id && openSheet({ type: 'txn', id: next.id })); },
+    'toggle-group': () => { const g = el.dataset.group; ui.closedGroups.has(g) ? ui.closedGroups.delete(g) : ui.closedGroups.add(g); render({ firstBars: true }); },
     'toggle-budget': () => { ui.openBudgets.has(id) ? ui.openBudgets.delete(id) : ui.openBudgets.add(id); render({ firstBars: true }); },
     'edit-plans': () => { ui.editPlans = !ui.editPlans; render(); },
     'delete-plan': () => act(() => api('/api/plan/delete', { id }), { done: 'Plan deleted' }),
@@ -243,7 +244,7 @@ document.addEventListener('submit', e => {
       shut(() => { render(); if (next) openSheet({ type: 'txn', id: next.id }); });
     },
     manual: () => saved('/api/txn/manual', { merchant: v.merchant, amountCents: toCents(v.amount), date: v.date, categoryId: v.cat || null, note: v.note, expectMatch: v.paid === 'card' }, 'Purchase added'),
-    category: () => saved('/api/category/save', { id, emoji: iconEmoji(v.icon), name: v.name, description: v.description, limitCents: toCents(v.limit), interval: v.interval }, 'Budget saved'),
+    category: () => saved('/api/category/save', { id, emoji: iconEmoji(v.icon), name: v.name, description: v.description, limitCents: toCents(v.limit), interval: v.interval, group: v.group }, 'Budget saved'),
     plan: () => saved('/api/plan/save', { id, name: v.name, lowCents: toCents(v.low), highCents: toCents(v.high), categoryId: v.categoryId || null, essential: Boolean(v.essential) }, 'Plan saved'),
     charge: () => act(() => api('/api/sandbox/charge', { itemId: v.itemId, description: v.description, amountCents: toCents(v.amount) * (v.dir === 'in' ? -1 : 1), daysAgo: Number(v.daysAgo) || 0 }), { wait: 'Sending to Plaid and waiting for it to post…', done: 'Charge arrived. Check your inbox.' })
   };
